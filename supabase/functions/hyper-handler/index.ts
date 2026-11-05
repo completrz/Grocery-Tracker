@@ -203,8 +203,8 @@ Deno.serve(async (request) => {
     }
 
     const photo = (await request.formData()).get('photo')
-    if (!(photo instanceof File) || !['image/jpeg', 'image/png'].includes(photo.type)) {
-      return json({ error: 'Choose a JPEG or PNG receipt photo.' }, 400)
+    if (!(photo instanceof File) || !['image/jpeg', 'image/png', 'application/pdf'].includes(photo.type)) {
+      return json({ error: 'Choose a JPEG, PNG or PDF receipt.' }, 400)
     }
     if (photo.size === 0 || photo.size > 4_000_000) {
       return json({ error: 'Choose a photo under 4 MB.' }, 400)

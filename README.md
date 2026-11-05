@@ -8,7 +8,7 @@
 
 ## What you can do
 
-- **Add a receipt in seconds.** Photograph it and CartTrail reads the store, date, items, quantities and prices for you. You can also type items in by hand.
+- **Add a receipt in seconds.** Photograph it, or upload a screenshot or PDF of a digital receipt, and CartTrail reads the store, date, items, quantities and prices for you. On a computer you can drop a file onto the scan screen or paste a screenshot. You can also type items in by hand.
 - **Save in one tap.** When the items add up to the printed subtotal, the review collapses and the button says "Looks right, save receipt". You can also pick several photos at once and review them one after another.
 - **Catch mistakes before they count.** Your items are added up and compared with the printed subtotal, live, as you edit. If they differ, you're told by how much, and you can fix the line right there.
 - **See your month at a glance.** The overview shows your last 30 days, a spending-by-day chart, your latest receipt and where the money went.
@@ -19,6 +19,7 @@
 - **Set a monthly budget.** See how you're tracking this month, how many days are left, and a warning if you're heading over.
 - **Compare your stores.** See trips, average spend per trip and share of spending for each store, and which store charges more for the same item.
 - **Know where you shop.** Pin a receipt to a store branch and see all your stores on a map, sized by what you spend there. CartTrail suggests the branch from the address on the receipt.
+- **Share receipts straight in.** On Android, once CartTrail is installed, it appears in the Share menu: share a screenshot or PDF from Photos, Gmail or Files and it opens ready to review.
 - **Take it with you.** Install CartTrail on your home screen for a one-tap "Scan a receipt" shortcut, turn on notifications (a weekly summary, budget alerts and a nudge when you've gone quiet, each optional), and export everything to CSV any time.
 - **Look around before you start.** A new account with no receipts sees clearly labelled sample data, so you can see what the app looks like with history. It disappears as soon as you save your first receipt.
 
@@ -128,6 +129,11 @@ The overview's **What changed** list is computed in [`src/insights.js`](src/insi
 ## Installing the app
 
 `public/manifest.json`, the icons and a small service worker make CartTrail installable. The overview's "Get the app and notifications" section shows an **Install CartTrail** button where the browser allows it (Chrome and Edge), and the steps for iPhone (Share, then Add to Home Screen) and other browsers. The installed app has a "Scan a receipt" shortcut that opens `/?scan=1` straight to the capture screen. The service worker caches nothing, so users never see a stale version.
+
+### Getting receipts in without the camera
+
+- **Files and paste.** The scan screen accepts JPEG, PNG and PDF files up to 4 MB, from the pickers, by drag and drop onto the screen, or by pasting a screenshot (Ctrl+V or Cmd+V). All routes go through one function in `src/App.jsx`. PDFs are read by Azure like photos; the review screen shows a "Your PDF receipt" card with a link to open the PDF, because browsers can't preview PDFs inline on phones. `hyper-handler` must be redeployed for PDFs to work, since it is where file types are checked.
+- **Share target (Android).** `manifest.json` declares a `share_target` that posts files to `/share-target`. The service worker handles that request: it keeps up to 10 allowed files (JPEG, PNG or PDF, 4 MB each) in the browser cache, then redirects to the app. When the app opens it takes the files out of the cache (each is removed as it is read, and anything older than a day is dropped), opens the scan screen and scans them one after another. Nothing is ever saved without the user reviewing it. iPhone doesn't support share targets for installed web apps, so iPhone users use the upload button.
 
 ## Push notifications
 
