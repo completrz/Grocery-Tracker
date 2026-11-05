@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 import Trends from './Trends'
+import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
 import { supabase } from './supabase'
 
 const dollars = new Intl.NumberFormat('en-US', {
@@ -9,7 +10,7 @@ const dollars = new Intl.NumberFormat('en-US', {
 })
 
 function blankItem() {
-  return { id: crypto.randomUUID(), name: '', quantity: '1', total: '' }
+  return { id: crypto.randomUUID(), name: '', quantity: '1', total: '', category: '' }
 }
 
 export default function App() {
@@ -185,6 +186,10 @@ function Tracker({ email }) {
   const [azureSubtotal, setAzureSubtotal] = useState(null)
   const [message, setMessage] = useState('')
   const [historyError, setHistoryError] = useState('')
+  const [categoryError, setCategoryError] = useState('')
+  const [categoryStatus, setCategoryStatus] = useState('')
+  const [categoryReady, setCategoryReady] = useState(false)
+  const [categoryRules, setCategoryRules] = useState(() => new Map())
   const [busy, setBusy] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const [search, setSearch] = useState('')
@@ -203,12 +208,21 @@ function Tracker({ email }) {
     let active = true
 
     async function loadReceipts() {
+      const rules = await supabase.from('receipt_category_rules').select('store_key, item_key, category')
+      const hasCategories = !rules.error
+      const columns = 'id, item_name, quantity, line_total_cents' + (hasCategories ? ', category' : '')
       const { data, error } = await supabase
         .from('receipts')
-        .select('id, store, purchased_on, receipt_items(id, item_name, quantity, line_total_cents)')
+        .select('id, store, purchased_on, receipt_items(' + columns + ')')
         .order('purchased_on', { ascending: false })
 
       if (!active) return
+      setCategoryReady(hasCategories)
+      setCategoryError(rules.error && !['PGRST205', '42P01'].includes(rules.error.code)
+        ? 'Saved categories could not be loaded.' : '')
+      setCategoryRules(new Map((rules.data ?? []).map((rule) => [
+        categoryKey(rule.store_key, rule.item_key), rule.category,
+      ])))
       setHistoryError(error?.message ?? '')
       if (!error) setReceipts(data)
     }
@@ -298,6 +312,33 @@ function Tracker({ email }) {
     ? null
     : Math.round(azureSubtotal * 100)
 
+  const choices = [...new Map([...defaultCategories, ...categoryRules.values()]
+    .map((category) => [normalizeLabel(category), category])).values()]
+  const activeStore = receiptId ? receipts.find((receipt) => receipt.id === receiptId)?.store ?? '' : store
+
+  async function saveItemCategory(event, itemId) {
+    event.preventDefault()
+    const category = tidyCategory(new FormData(event.currentTarget).get('category'), choices)
+    if (!category) {
+      setCategoryStatus('Enter a category to remember.')
+      return
+    }
+    setBusy(true)
+    setCategoryStatus('')
+    try {
+      const { data, error } = await supabase.from('receipt_items')
+        .update({ category }).eq('id', itemId).select('id').single()
+      if (error) throw error
+      if (!data) throw new Error('The receipt item could not be updated.')
+      setCategoryStatus('Category saved. Matching items will reuse it.')
+      setRefresh((current) => current + 1)
+    } catch (error) {
+      setCategoryStatus(error.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function saveReceipt(event) {
     event.preventDefault()
 
@@ -307,6 +348,9 @@ function Tracker({ email }) {
       line_total_cents: item.total.trim()
         ? Math.round(Number(item.total) * 100)
         : NaN,
+      ...(categoryReady && item.category.trim()
+        ? { category: tidyCategory(item.category, choices) }
+        : {}),
     }))
 
     const invalidItem = rows.some((row) =>
@@ -457,7 +501,13 @@ function Tracker({ email }) {
           </div>
         </section>
 
-        {view === 'trends' && <Trends receipts={receipts} />}
+        {categoryReady && (
+          <datalist id="receipt-category-options">
+            {choices.map((category) => <option key={category} value={category} />)}
+          </datalist>
+        )}
+        {categoryError && <p className="form-status" role="status">{categoryError}</p>}
+        {view === 'trends' && <Trends receipts={receipts} rules={categoryRules} />}
 
         <div className="workspace-content" data-view={view} hidden={view === 'trends'}>
           <section className="panel capture-panel" id="capture" aria-label="Receipt entry" hidden={view !== 'capture'}>
@@ -516,6 +566,11 @@ function Tracker({ email }) {
                     (current) => [...current, blankItem()],
                   )}><Icon name="plus" /> Add item</button>
                 </div>
+                {categoryReady && (
+                  <p className="trend-note category-help">
+                    Leave the category blank to use the suggestion. Enter a category to remember it for this store and item name.
+                  </p>
+                )}
                 {items.map((item, index) => (
                   <fieldset className="item-row" key={item.id}>
                     <legend className="visually-hidden">Item {index + 1}</legend>
@@ -535,6 +590,13 @@ function Tracker({ email }) {
                       onClick={() => setItems((current) => current.filter((entry) => entry.id !== item.id))}>
                       <Icon name="close" />
                     </button>
+                    {categoryReady && (
+                      <label className="draft-category">Category
+                        <input list="receipt-category-options" value={item.category} maxLength={64}
+                          placeholder={resolveCategory(categoryRules, activeStore, item.name)}
+                          onChange={(event) => updateItem(item.id, 'category', event.target.value)} />
+                      </label>
+                    )}
                   </fieldset>
                 ))}
 
@@ -580,6 +642,7 @@ function Tracker({ email }) {
                 </label>
               </div>
               {historyError && <p className="empty" role="alert">{historyError}</p>}
+              {categoryReady && <p className="form-status" role="status">{categoryStatus}</p>}
               {!historyError && visibleReceipts.length === 0 && (
                 <p className="empty">{query ? 'No receipts match your search.' : 'No receipts yet.'}</p>
               )}
@@ -603,12 +666,27 @@ function Tracker({ email }) {
                     <div className="history-details">
                       {receipt.receipt_items.length === 0 && <p className="muted">No items recorded.</p>}
                       <ul>
-                        {receipt.receipt_items.map((item) => (
-                          <li key={item.id}>
-                            <span>{item.item_name} × {item.quantity}</span>
-                            <strong>{dollars.format(item.line_total_cents / 100)}</strong>
-                          </li>
-                        ))}
+                        {receipt.receipt_items.map((item) => {
+                          const category = resolveCategory(categoryRules, receipt.store, item.item_name, item.category)
+                          return (
+                            <li key={item.id} className="history-item">
+                              <div className="history-item-line">
+                                <span>{item.item_name} × {item.quantity}</span>
+                                <strong>{dollars.format(item.line_total_cents / 100)}</strong>
+                              </div>
+                              {categoryReady && (
+                                <form key={category} className="history-category"
+                                  onSubmit={(event) => saveItemCategory(event, item.id)}>
+                                  <label>Category
+                                    <input name="category" list="receipt-category-options" defaultValue={category}
+                                      maxLength={64} required disabled={busy} />
+                                  </label>
+                                  <button className="button quiet" type="submit" disabled={busy}>Save category</button>
+                                </form>
+                              )}
+                            </li>
+                          )
+                        })}
                       </ul>
                       <button className="button quiet" type="button" disabled={busy} onClick={() => {
                         setReceiptId(receipt.id)

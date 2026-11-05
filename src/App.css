@@ -309,3 +309,10 @@ input::placeholder { color: var(--muted); }
 .chart-bar { fill: var(--chart); }
 .spending-chart figcaption, .chart-values { color: var(--muted); font-size: .78rem; }
 .chart-values { margin-top: .7rem; }
+
+.category-help { margin: 0 0 .55rem; }
+.draft-category { grid-column: 1 / -1; max-width: 22rem; }
+.history-details .history-item { display: block; }
+.history-item-line { display: flex; justify-content: space-between; gap: .65rem; }
+.history-category { display: flex; align-items: end; flex-wrap: wrap; gap: .3rem .5rem; margin: .25rem 0 .5rem; }
+.history-category label { min-width: 0; flex: 1 1 9rem; }
