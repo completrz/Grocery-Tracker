@@ -179,6 +179,10 @@ function SignIn() {
 function Tracker({ email }) {
   const [receipts, setReceipts] = useState([])
   const [locationsReady, setLocationsReady] = useState(false)
+  const [branchesReady, setBranchesReady] = useState(false)
+  const [branches, setBranches] = useState([])
+  const [branchDraft, setBranchDraft] = useState(null)
+  const [branchMessage, setBranchMessage] = useState('')
   const [items, setItems] = useState(() => [blankItem()])
   const [store, setStore] = useState('')
   const [date, setDate] = useState('')
@@ -209,10 +213,12 @@ function Tracker({ email }) {
     let active = true
 
     async function loadReceipts() {
+      const branchResult = await supabase.from('store_branches')
+        .select('id, store, address, source_address, latitude, longitude')
       const rules = await supabase.from('receipt_category_rules').select('store_key, item_key, category')
       const hasCategories = !rules.error
       const columns = 'id, item_name, quantity, line_total_cents' + (hasCategories ? ', category' : '')
-      const fields = 'id, store, purchased_on, receipt_items(' + columns + ')'
+      const fields = 'id, store, purchased_on, receipt_items(' + columns + ')' + (!branchResult.error ? ', store_branch_id' : '')
       const load = (select) => supabase.from('receipts').select(select)
         .order('purchased_on', { ascending: false })
       const withLocations = await load(fields + ', latitude, longitude')
@@ -222,6 +228,8 @@ function Tracker({ email }) {
 
       if (!active) return
       setLocationsReady(!missingLocationColumns && !error)
+      setBranchesReady(!branchResult.error)
+      setBranches(branchResult.data ?? [])
       setCategoryReady(hasCategories)
       setCategoryError(rules.error && !['PGRST205', '42P01'].includes(rules.error.code)
         ? 'Saved categories could not be loaded.' : '')
@@ -229,7 +237,10 @@ function Tracker({ email }) {
         categoryKey(rule.store_key, rule.item_key), rule.category,
       ])))
       setHistoryError(error?.message ?? '')
-      if (!error) setReceipts(data)
+      if (!error) setReceipts(data.map((receipt) => {
+        const branch = branchResult.data?.find((entry) => entry.id === receipt.store_branch_id)
+        return branch ? { ...receipt, latitude: branch.latitude, longitude: branch.longitude } : receipt
+      }))
     }
 
     loadReceipts()
@@ -240,6 +251,55 @@ function Tracker({ email }) {
     setItems((current) => current.map((item) =>
       item.id === id ? { ...item, [field]: value } : item,
     ))
+  }
+
+  const addressKey = (value) => value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+
+  async function locateBranch(address, merchant, country = '') {
+    const base = { storeKey: addressKey(merchant), address, location: null, confirmed: false }
+    const known = branches.find((branch) => addressKey(branch.store) === base.storeKey &&
+      [branch.address, branch.source_address].some((value) => value && addressKey(value) === addressKey(address)))
+    if (known) {
+      setBranchDraft({ ...base, location: known, confirmed: true })
+      setBranchMessage('Matched a previously confirmed branch.')
+      return
+    }
+
+    setBranchDraft(base)
+    if (!address.trim()) {
+      setBranchMessage('No address found. Choose a saved branch or save without a location.')
+      return
+    }
+    if (country && country !== 'USA') {
+      setBranchMessage('Automatic address lookup currently covers the U.S. Choose a saved branch or add a map pin later.')
+      return
+    }
+
+    setBranchMessage('Looking up the store address…')
+    try {
+      const { data, error } = await supabase.functions.invoke('hyper-handler', {
+        body: { action: 'locate-address', address },
+      })
+      if (error) throw error
+      if (!data.location) {
+        setBranchMessage('No unique address match. Edit the address, choose a saved branch, or skip.')
+        return
+      }
+      setBranchDraft({ ...base, location: data.location, confirmed: false })
+      setBranchMessage('Check this suggested address before using it. Coordinates are approximate.')
+    } catch {
+      setBranchMessage('Address lookup is unavailable. You can still save this receipt without a location.')
+    }
+  }
+
+  async function lookUpEnteredAddress() {
+    if (!branchDraft?.address.trim()) return
+    setBusy(true)
+    try {
+      await locateBranch(branchDraft.address, store)
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function scanReceipt(event) {
@@ -300,6 +360,9 @@ function Tracker({ email }) {
       })))
 
       setMessage(`Found ${data.items.length} items. Review them before saving.`)
+      if (!receiptId && branchesReady) {
+        await locateBranch(data.address ?? '', data.store ?? '', data.country ?? '')
+      }
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -381,14 +444,20 @@ function Tracker({ email }) {
     setMessage('')
 
     try {
+      const selectedBranch = branchDraft?.storeKey === addressKey(store) && branchDraft.confirmed
+        ? branchDraft.location
+        : null
       const { error } = receiptId
         ? await supabase.from('receipt_items').insert(
             rows.map((row) => ({ ...row, receipt_id: receiptId })),
           )
-        : await supabase.rpc('save_grocery_receipt', {
+        : await supabase.rpc(branchesReady ? 'save_grocery_receipt_at_branch' : 'save_grocery_receipt', {
             p_store: store.trim(),
             p_purchased_on: date,
             p_items: rows,
+            ...(branchesReady ? { p_branch: selectedBranch?.id ? { id: selectedBranch.id } : selectedBranch ? {
+              ...selectedBranch, source_address: branchDraft.address,
+            } : null } : {}),
           })
 
       if (error) throw error
@@ -401,6 +470,8 @@ function Tracker({ email }) {
       setScanText('')
       setPreviewUrl('')
       setAzureSubtotal(null)
+      setBranchDraft(null)
+      setBranchMessage('')
       setRefresh((current) => current + 1)
     } catch (error) {
       setMessage(error.message)
@@ -412,7 +483,8 @@ function Tracker({ email }) {
   async function saveReceiptLocation(id, point) {
     const [latitude, longitude] = point ?? [null, null]
     const { data, error } = await supabase.from('receipts')
-      .update({ latitude, longitude }).eq('id', id).select('id, latitude, longitude').single()
+      .update({ latitude, longitude, ...(branchesReady ? { store_branch_id: null } : {}) })
+      .eq('id', id).select('id, latitude, longitude' + (branchesReady ? ', store_branch_id' : '')).single()
     if (error) throw error
     setReceipts((current) => current.map((receipt) => receipt.id === id ? { ...receipt, ...data } : receipt))
   }
@@ -571,6 +643,52 @@ function Tracker({ email }) {
                         onChange={(event) => setDate(event.target.value)} required />
                     </label>
                   </div>
+                )}
+
+                {!receiptId && branchesReady && (
+                  <section className="branch-picker" aria-labelledby="branch-title">
+                    <h3 id="branch-title">Store branch <small>Optional</small></h3>
+                    <label>Saved branch
+                      <select aria-label="Saved branch"
+                        value={branchDraft?.storeKey === addressKey(store) && branchDraft.location?.id ? branchDraft.location.id : ''}
+                        onChange={(event) => {
+                          const branch = branches.find((entry) => entry.id === event.target.value)
+                          setBranchDraft(branch ? {
+                            storeKey: addressKey(store), address: branch.address, location: branch, confirmed: true,
+                          } : null)
+                          setBranchMessage(branch ? 'Using your saved branch.' : 'This receipt will be saved without a location.')
+                        }}>
+                        <option value="">No saved branch selected</option>
+                        {branches.filter((entry) => addressKey(entry.store) === addressKey(store)).map((branch) => (
+                          <option key={branch.id} value={branch.id}>{branch.address}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>Merchant address
+                      <input value={branchDraft?.storeKey === addressKey(store) ? branchDraft.address : ''}
+                        placeholder="Street, city, state, ZIP" maxLength={500}
+                        onChange={(event) => {
+                          setBranchDraft({ storeKey: addressKey(store), address: event.target.value, location: null, confirmed: false })
+                          setBranchMessage('')
+                        }} />
+                    </label>
+                    <button className="button secondary" type="button" disabled={!branchDraft?.address.trim() || !store.trim()}
+                      onClick={lookUpEnteredAddress}>Find U.S. address</button>
+                    <p className="trend-note">New address lookups send the merchant address to the U.S. Census Geocoder.</p>
+                    {branchDraft?.storeKey === addressKey(store) && branchDraft.location && (
+                      <div className="branch-match">
+                        <p>{branchDraft.location.address}</p>
+                        <a href={`https://www.openstreetmap.org/?mlat=${branchDraft.location.latitude}&mlon=${branchDraft.location.longitude}#map=17/${branchDraft.location.latitude}/${branchDraft.location.longitude}`}
+                          target="_blank" rel="noreferrer">Check on map</a>
+                        <label className="check-label">
+                          <input type="checkbox" checked={branchDraft.confirmed}
+                            onChange={(event) => setBranchDraft({ ...branchDraft, confirmed: event.target.checked })} />
+                          Use this branch when saving
+                        </label>
+                      </div>
+                    )}
+                    <p className="form-status" role="status">{branchMessage}</p>
+                  </section>
                 )}
 
                 <div className="items-heading">

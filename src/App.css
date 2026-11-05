@@ -377,3 +377,13 @@ input::placeholder { color: var(--muted); }
   .analytics-metrics .metric { padding: .5rem; }
   .analytics-metrics .metric strong { font-size: 1.05rem; }
 }
+
+.branch-picker { margin-top: 1rem; padding: .85rem; border: 1px solid var(--border); border-radius: .375rem; }
+.branch-picker h3 { font-size: .95rem; }
+.branch-picker h3 small { margin-left: .4rem; font-weight: 400; color: var(--muted); }
+.branch-picker > label { display: block; margin-top: .65rem; }
+.branch-picker > button { margin-top: .6rem; }
+.branch-match { margin-top: .65rem; padding: .7rem; background: var(--accent); border-radius: .375rem; font-size: .84rem; }
+.branch-match a { display: inline-block; margin: .35rem 0; }
+.check-label { display: flex; align-items: center; gap: .5rem; }
+.check-label input[type=checkbox] { display: inline-block; width: 1.1rem; height: 1.1rem; min-height: 0; margin: 0; padding: 0; accent-color: var(--brand); }

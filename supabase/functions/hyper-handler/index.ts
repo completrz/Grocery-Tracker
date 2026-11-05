@@ -1,3 +1,4 @@
+import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 
 function json(body: unknown, status = 200) {
@@ -23,6 +24,36 @@ Deno.serve(async (request) => {
     const { data, error } = await supabase.auth.getUser(token)
     if (error || !data.user) {
       return json({ error: 'Your session expired. Sign in again.' }, 401)
+    }
+
+    if (request.headers.get('Content-Type')?.includes('application/json')) {
+      const body = await request.json()
+      if (body.action !== 'locate-address' || typeof body.address !== 'string' ||
+          body.address.length > 500 || body.address.trim().length < 8) {
+        return json({ error: 'Enter a complete street address.' }, 400)
+      }
+      const url = new URL('https://geocoding.geo.census.gov/geocoder/locations/onelineaddress')
+      url.searchParams.set('address', body.address.trim())
+      url.searchParams.set('benchmark', 'Public_AR_Current')
+      url.searchParams.set('format', 'json')
+      try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(8_000) })
+        if (!response.ok) return json({ location: null })
+        const result = await response.json()
+        const matches = result.result?.addressMatches ?? []
+        if (matches.length !== 1) return json({ location: null })
+        const match = matches[0]
+        const latitude = match.coordinates?.y
+        const longitude = match.coordinates?.x
+        if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
+            !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+            Math.abs(latitude) > 85 || Math.abs(longitude) > 180) {
+          return json({ location: null })
+        }
+        return json({ location: { address: match.matchedAddress, latitude, longitude } })
+      } catch {
+        return json({ location: null })
+      }
     }
 
     const photo = (await request.formData()).get('photo')
@@ -74,6 +105,8 @@ Deno.serve(async (request) => {
 
       return json({
         store: fields?.MerchantName?.valueString ?? '',
+        address: fields?.MerchantAddress?.valueString ?? fields?.MerchantAddress?.content ?? '',
+        country: fields?.CountryRegion?.valueCountryRegion ?? '',
         date: fields?.TransactionDate?.valueDate ?? '',
         subtotal: fields?.Subtotal?.valueCurrency?.amount ?? null,
         text: analysis?.content ?? '',
