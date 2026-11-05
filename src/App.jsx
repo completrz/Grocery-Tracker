@@ -178,6 +178,7 @@ function SignIn() {
 
 function Tracker({ email }) {
   const [receipts, setReceipts] = useState([])
+  const [locationsReady, setLocationsReady] = useState(false)
   const [items, setItems] = useState(() => [blankItem()])
   const [store, setStore] = useState('')
   const [date, setDate] = useState('')
@@ -211,12 +212,16 @@ function Tracker({ email }) {
       const rules = await supabase.from('receipt_category_rules').select('store_key, item_key, category')
       const hasCategories = !rules.error
       const columns = 'id, item_name, quantity, line_total_cents' + (hasCategories ? ', category' : '')
-      const { data, error } = await supabase
-        .from('receipts')
-        .select('id, store, purchased_on, receipt_items(' + columns + ')')
+      const fields = 'id, store, purchased_on, receipt_items(' + columns + ')'
+      const load = (select) => supabase.from('receipts').select(select)
         .order('purchased_on', { ascending: false })
+      const withLocations = await load(fields + ', latitude, longitude')
+      const missingLocationColumns = ['42703', 'PGRST204'].includes(withLocations.error?.code) &&
+        /latitude|longitude/i.test(withLocations.error.message)
+      const { data, error } = missingLocationColumns ? await load(fields) : withLocations
 
       if (!active) return
+      setLocationsReady(!missingLocationColumns && !error)
       setCategoryReady(hasCategories)
       setCategoryError(rules.error && !['PGRST205', '42P01'].includes(rules.error.code)
         ? 'Saved categories could not be loaded.' : '')
@@ -404,6 +409,14 @@ function Tracker({ email }) {
     }
   }
 
+  async function saveReceiptLocation(id, point) {
+    const [latitude, longitude] = point ?? [null, null]
+    const { data, error } = await supabase.from('receipts')
+      .update({ latitude, longitude }).eq('id', id).select('id, latitude, longitude').single()
+    if (error) throw error
+    setReceipts((current) => current.map((receipt) => receipt.id === id ? { ...receipt, ...data } : receipt))
+  }
+
   async function signOut() {
     const { error } = await supabase.auth.signOut()
     if (error) setMessage(error.message)
@@ -507,7 +520,7 @@ function Tracker({ email }) {
           </datalist>
         )}
         {categoryError && <p className="form-status" role="status">{categoryError}</p>}
-        {view === 'trends' && <Trends receipts={receipts} rules={categoryRules} />}
+        {view === 'trends' && <Trends receipts={receipts} rules={categoryRules} locationsReady={locationsReady} onSaveLocation={saveReceiptLocation} />}
 
         <div className="workspace-content" data-view={view} hidden={view === 'trends'}>
           <section className="panel capture-panel" id="capture" aria-label="Receipt entry" hidden={view !== 'capture'}>

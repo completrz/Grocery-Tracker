@@ -33,3 +33,9 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
 For your own backend, configure Supabase Auth, the `receipts` and `receipt_items` tables with ownership policies, and the `save_grocery_receipt` database function. Create a test user in Supabase and deploy the [`hyper-handler` Edge Function](supabase/functions/hyper-handler/index.ts). Set `AZURE_DOCUMENT_ENDPOINT` and `AZURE_DOCUMENT_KEY` in Supabase Edge Function secrets.
+
+## Trends and store locations
+
+Trends charts show monthly spending, product prices per recorded unit, and category spending. Period and store filters apply to the charts, rankings, and map. The figures come from saved receipt lines in USD.
+
+Apply the [receipt locations migration](supabase/migrations/20261105010000_receipt_locations.sql) in Supabase to enable the spending map. Choose a saved receipt and pin its store branch manually. Branches with the same saved coordinates are grouped. Opening the map loads the OpenStreetMap basemap through Leaflet.

@@ -288,18 +288,6 @@ input::placeholder { color: var(--muted); }
 
 [hidden] { display: none !important; }
 .trend-select { display: block; margin: 1rem 0 .6rem; }
-.trend-rows { list-style: none; padding: 0; margin: 0; }
-.trend-rows li {
-  display: grid;
-  grid-template-columns: 5.2rem minmax(2rem, 1fr) max-content;
-  gap: .2rem .65rem;
-  align-items: center;
-  padding: .55rem 0;
-  border-top: 1px solid var(--border);
-  font-size: .87rem;
-}
-.trend-rows strong { text-align: right; font-variant-numeric: tabular-nums; }
-.trend-rows small { grid-column: 1 / -1; color: var(--muted); }
 .trend-note { margin-top: .65rem; font-size: .8rem; color: var(--muted); }
 
 .spending-chart { margin: .75rem 0 0; }
@@ -316,3 +304,76 @@ input::placeholder { color: var(--muted); }
 .history-item-line { display: flex; justify-content: space-between; gap: .65rem; }
 .history-category { display: flex; align-items: end; flex-wrap: wrap; gap: .3rem .5rem; margin: .25rem 0 .5rem; }
 .history-category label { min-width: 0; flex: 1 1 9rem; }
+
+.analytics-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+.analytics-toolbar label { flex: 0 1 11rem; }
+.analytics-toolbar p { margin: 0 0 .55rem auto; font-size: .8rem; }
+.analytics-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.analytics .trend-grid { align-items: stretch; }
+.interactive-chart { margin-top: .75rem; min-width: 0; }
+.chart-inspector {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .45rem;
+  padding: .55rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: .375rem;
+  background: var(--canvas);
+  font-size: .8rem;
+}
+.chart-inspector > div { display: flex; flex-wrap: wrap; gap: .2rem .65rem; align-items: baseline; }
+.chart-inspector strong { color: var(--brand); font-variant-numeric: tabular-nums; }
+.chart-inspector small { color: var(--muted); text-align: right; }
+.interactive-chart svg { display: block; width: 100%; touch-action: pan-y; }
+.interactive-chart svg text { font-size: 10px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.chart-zero { stroke: var(--input-border); }
+.chart-guide { stroke: var(--chart); stroke-dasharray: 3 3; opacity: .6; }
+.trend-line { stroke: var(--chart); stroke-width: 2; }
+.trend-dot { fill: var(--chart); stroke: var(--surface); stroke-width: 1.5; }
+.trend-bar { fill: var(--chart); opacity: .6; }
+.trend-bar.active { opacity: 1; }
+.chart-hit { cursor: pointer; }
+.chart-hit:focus { outline: none; }
+.chart-hit:focus-visible { stroke: var(--ring); stroke-dasharray: 3 3; }
+.chart-values table { width: 100%; border-collapse: collapse; text-align: left; margin-top: .5rem; }
+.chart-values th, .chart-values td { padding: .3rem; border-top: 1px solid var(--border); font-size: .76rem; }
+.rankings h3, .map-form h3 { margin-top: .8rem; font-size: .9rem; }
+.ranking-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  text-align: left;
+  gap: .25rem;
+  padding: .45rem .35rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+  font-size: .8rem;
+}
+.ranking-row[aria-pressed=true], .ranking-row:hover { background: var(--accent); }
+.ranking-row .bar { grid-column: 1 / -1; margin: 0; height: .24rem; }
+.analytics-map-panel { margin-top: 1.25rem; }
+.map-toggle { margin-top: .65rem; }
+.spending-map { height: clamp(16rem, 50vh, 30rem); margin: .65rem 0; z-index: 0; border: 1px solid var(--border); border-radius: .375rem; }
+.map-form { margin-top: .9rem; }
+.map-form fieldset { margin-top: .65rem; }
+.map-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .65rem; }
+.location-list { list-style: none; margin: .5rem 0; padding: 0; }
+.location-list li { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; border-bottom: 1px solid var(--border); font-size: .8rem; }
+.location-list li strong { margin-left: auto; }
+@media (max-width: 560px) {
+  .analytics-toolbar label { flex: 1 1 7rem; }
+  .analytics-toolbar p { margin: 0; }
+  .analytics-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .analytics-metrics .metric:nth-child(3) { border-top: 0; border-left: 1px solid var(--border); }
+  .analytics-metrics .metric { padding: .5rem; }
+  .analytics-metrics .metric strong { font-size: 1.05rem; }
+}
