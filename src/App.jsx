@@ -35,6 +35,8 @@ export default function App() {
 
 function Icon({ name }) {
   const paths = {
+    overview: 'M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z',
+    trends: 'M3 3v18h18M7 16l4-5 4 2 5-7',
     receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6',
     camera: 'M4 7h4l2-3h4l2 3h4a1 1 0 0 1 1 1v11H3V8a1 1 0 0 1 1-1Zm12 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
     search: 'M15.5 15.5 21 21m-3.5-10.5a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z',
@@ -60,6 +62,50 @@ const dateLabel = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZo
 
 function receiptTotal(receipt) {
   return receipt.receipt_items.reduce((sum, item) => sum + item.line_total_cents, 0)
+}
+
+function SpendingChart({ months }) {
+  const recent = months.slice(0, 6).reverse()
+  const low = Math.min(0, ...recent.map(([, cents]) => cents))
+  const high = Math.max(1, ...recent.map(([, cents]) => cents))
+  const y = (cents) => 14 + (high - cents) / (high - low) * 140
+  const cell = 312 / recent.length
+  const width = Math.min(cell * .52, 46)
+
+  return (
+    <figure className="spending-chart">
+      <svg viewBox="0 0 390 185" aria-hidden="true">
+        {[high, (high + low) / 2, low].map((cents) => (
+          <g key={cents}>
+            <line className="chart-grid" x1="68" x2="380" y1={y(cents)} y2={y(cents)} />
+            <text x="61" y={y(cents) + 4} textAnchor="end">{dollars.format(cents / 100)}</text>
+          </g>
+        ))}
+        {recent.map(([month, cents], index) => {
+          const x = 68 + (index + .5) * cell
+          return (
+            <g key={month}>
+              <rect x={x - width / 2} y={Math.min(y(0), y(cents))} width={width}
+                height={Math.abs(y(0) - y(cents))} rx="3" className="chart-bar" />
+              <text x={x} y="175" textAnchor="middle">{monthLabel.format(new Date(month + '-01'))}</text>
+            </g>
+          )
+        })}
+      </svg>
+      <figcaption>Up to six most recent months with saved items</figcaption>
+      <details className="chart-values">
+        <summary>View monthly totals</summary>
+        <ul className="months">
+          {months.map(([month, cents]) => (
+            <li key={month}>
+              <div><span>{monthLabel.format(new Date(month + '-01'))}</span>
+                <strong>{dollars.format(cents / 100)}</strong></div>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </figure>
+  )
 }
 
 function SignIn() {
@@ -332,7 +378,6 @@ function Tracker({ email }) {
   }
 
   const months = [...monthlyTotals]
-  const maxMonth = Math.max(1, ...monthlyTotals.values())
   const query = search.trim().toLowerCase().replace(/\s+/g, ' ')
   const visibleReceipts = receipts.filter((receipt) =>
     receipt.store.toLowerCase().replace(/\s+/g, ' ').includes(query) ||
@@ -341,18 +386,30 @@ function Tracker({ email }) {
   )
   const subtotalMatches = missingPrices === 0 && enteredCents === subtotalCents
 
+  function openView(nextView) {
+    setView(nextView)
+    window.scrollTo(0, 0)
+  }
+
   return (
-    <>
-      <header className="topbar">
-        <div className="topbar-inner">
-          <button type="button" className="brand-link" onClick={() => setView('overview')}><Brand /></button>
-          <nav aria-label="Dashboard">
-            {Object.entries({ overview: 'Overview', trends: 'Trends', receipts: 'Receipts' }).map(([key, label]) => (
-              <button key={key} type="button" aria-current={view === key ? 'page' : undefined}
-                onClick={() => setView(key)}>{label}</button>
-            ))}
-          </nav>
-          <div className="account">
+    <div className="app-shell">
+      <header className="app-rail">
+        <button type="button" className="brand-link" onClick={() => openView('overview')}><Brand /></button>
+        <nav aria-label="Dashboard">
+          <span className="nav-label">Workspace</span>
+          {[
+            ['overview', 'Overview', 'overview'],
+            ['trends', 'Trends', 'trends'],
+            ['receipts', 'Receipts', 'receipt'],
+            ['capture', 'Scan receipt', 'camera'],
+          ].map(([key, label, icon]) => (
+            <button key={key} type="button" aria-current={view === key ? 'page' : undefined}
+              onClick={() => openView(key)}><Icon name={icon} />{label}</button>
+          ))}
+        </nav>
+        <div className="account">
+          <span className="avatar" aria-hidden="true">{email?.[0]?.toUpperCase() ?? 'U'}</span>
+          <div className="account-info">
             <span title={email}>{email}</span>
             <button className="button quiet" type="button" disabled={busy} onClick={signOut}>Sign out</button>
           </div>
@@ -371,7 +428,7 @@ function Tracker({ email }) {
             }[view]}</p>
           </div>
           {view !== 'capture' && (
-            <button className="button primary" type="button" onClick={() => setView('capture')}>
+            <button className="button primary" type="button" onClick={() => openView('capture')}>
               <Icon name="plus" /> Add receipt
             </button>
           )}
@@ -509,19 +566,9 @@ function Tracker({ email }) {
                 <h2 id="spending-title">Monthly spending</h2>
                 <p className="muted">Saved line totals in USD.</p>
               </div>
-              {months.length === 0 ? <p className="empty">Save a receipt to see monthly totals.</p> : (
-                <ul className="months">
-                  {months.map(([month, cents]) => (
-                    <li key={month}>
-                      <div><span>{monthLabel.format(new Date(`${month}-01`))}</span>
-                        <strong>{dollars.format(cents / 100)}</strong></div>
-                      <span className="bar" aria-hidden="true">
-                        <span style={{ width: `${Math.max(0, cents) / maxMonth * 100}%` }} />
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {months.length === 0
+                ? <p className="empty">Save a receipt to see monthly totals.</p>
+                : <SpendingChart months={months} />}
             </section>
 
             <section className="panel" id="history" aria-labelledby="history-title" hidden={view === 'capture'}>
@@ -537,12 +584,19 @@ function Tracker({ email }) {
                 <p className="empty">{query ? 'No receipts match your search.' : 'No receipts yet.'}</p>
               )}
               <div className="history-list">
+                {visibleReceipts.length > 0 && (
+                  <div className="receipt-columns" aria-hidden="true">
+                    <span>Store</span><span>Purchase date</span><span>Line total</span>
+                  </div>
+                )}
                 {(view === 'overview' && !query ? visibleReceipts.slice(0, 5) : visibleReceipts).map((receipt) => (
                   <details key={receipt.id} className="history-receipt">
                     <summary>
-                      <span className="history-icon"><Icon name="receipt" /></span>
-                      <span className="receipt-meta"><strong>{receipt.store}</strong>
-                        <small>{dateLabel.format(new Date(receipt.purchased_on))}</small></span>
+                      <span className="receipt-meta">
+                        <span className="history-icon"><Icon name="receipt" /></span>
+                        <strong>{receipt.store}</strong>
+                      </span>
+                      <time dateTime={receipt.purchased_on}>{dateLabel.format(new Date(receipt.purchased_on))}</time>
                       <strong className="receipt-amount">{dollars.format(receiptTotal(receipt) / 100)}</strong>
                       <Icon name="chevron" />
                     </summary>
@@ -558,18 +612,18 @@ function Tracker({ email }) {
                       </ul>
                       <button className="button quiet" type="button" disabled={busy} onClick={() => {
                         setReceiptId(receipt.id)
-                        setView('capture')
+                        openView('capture')
                       }}>Add items to this receipt</button>
                     </div>
                   </details>
                 ))}
               </div>
               {view === 'overview' && receipts.length > 5 && !query && (
-                <button className="button quiet" type="button" onClick={() => setView('receipts')}>View all receipts</button>
+                <button className="button quiet" type="button" onClick={() => openView('receipts')}>View all receipts</button>
               )}
             </section>
         </div>
       </main>
-    </>
+    </div>
   )
 }
