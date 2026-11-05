@@ -72,7 +72,7 @@ function shiftMonth(key, delta) {
   return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0')
 }
 
-export default function Trends({ receipts, rules, locationsReady, onSaveLocation }) {
+export default function Trends({ receipts, rules, locationsReady, onSaveLocation, onScan }) {
   const [period, setPeriod] = useState(() => ({ value: '6', ...periodRange('6') }))
   const [store, setStore] = useState('')
   const [productKey, setProduct] = useState('')
@@ -125,6 +125,12 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
   const monthMax = Math.max(1, ...monthRows.map(([, row]) => Math.abs(row.cents)))
   const complete = monthRows.filter(([key]) => key !== nowKey)
   const averageRows = complete.length ? complete : monthRows
+  // Every month in the period gets a slot, so a short history still reads as a timeline
+  // with honest empty months instead of a lone bar.
+  const earliest = monthRows[0]?.[0] ?? nowKey
+  const allTimeSpan = Math.min(36, Math.max(6, (Number(nowKey.slice(0, 4)) - Number(earliest.slice(0, 4))) * 12 + Number(nowKey.slice(5, 7)) - Number(earliest.slice(5, 7)) + 1))
+  const spanMonths = period.value ? Number(period.value) : allTimeSpan
+  const slots = Array.from({ length: spanMonths }, (_, index) => shiftMonth(nowKey, index - spanMonths + 1))
   const average = averageRows.length ? averageRows.reduce((sum, [, row]) => sum + row.cents, 0) / averageRows.length : 0
   const periodName = period.value ? 'Last ' + period.value + ' months' : 'All time'
 
@@ -156,22 +162,29 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
           <h2 className="h-section" id="spending-trend-title">Monthly spending</h2>
           {monthRows.length > 0 && <p className="muted">Average month: {wholeMoney.format(average / 100)} at {storeName ?? 'all stores'}</p>}
         </div>
-        {monthRows.length === 0 ? <p className="muted">No spending for these filters. Try a longer period or a different store.</p> : (
-          <div className="scroll-x">
-            <ul className="month-bars" aria-label="Monthly spending">
-              {monthRows.map(([key, row], index) => {
-                const current = key === nowKey
-                const label = monthName.format(new Date(key + '-01T00:00:00Z'))
-                return (
-                  <li key={key} className="month-col" title={longMonthName.format(new Date(key + '-01T00:00:00Z')) + ' ' + key.slice(0, 4)}>
-                    <span className="month-value">{wholeMoney.format(row.cents / 100)}</span>
-                    <div className={current ? 'month-bar is-current' : 'month-bar'}
-                      style={{ height: Math.max(4, Math.round(Math.abs(row.cents) / monthMax * 190)), '--i': index }} />
-                    <span className="month-label">{current ? label + ' so far' : label}</span>
-                  </li>
-                )
-              })}
-            </ul>
+        <div className="scroll-x">
+          <ul className="month-bars" aria-label="Monthly spending">
+            {slots.map((key, index) => {
+              const row = months.get(key)
+              const current = key === nowKey
+              const label = monthName.format(new Date(key + '-01T00:00:00Z'))
+              const full = longMonthName.format(new Date(key + '-01T00:00:00Z')) + ' ' + key.slice(0, 4)
+              return (
+                <li key={key} className="month-col" title={row ? full : full + ': no receipts'}>
+                  <span className="month-value">{row ? wholeMoney.format(row.cents / 100) : <span className="visually-hidden">No receipts</span>}</span>
+                  <div className={'month-bar' + (current ? ' is-current' : '') + (row ? '' : ' is-empty')}
+                    style={row ? { height: Math.max(4, Math.round(Math.abs(row.cents) / monthMax * 190)), '--i': index } : undefined} />
+                  <span className={row ? 'month-label' : 'month-label is-quiet'}>{current ? label + ' so far' : label}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+        {monthRows.length === 0 && <p className="muted spaced">No spending for these filters. Try a longer period or a different store.</p>}
+        {monthRows.length > 0 && monthRows.length < 3 && (
+          <div className="chart-hint">
+            <p className="muted">Months fill in as you save receipts. Scan an older receipt to add its month.</p>
+            {onScan && <button className="link-button" type="button" onClick={onScan}>Scan a receipt</button>}
           </div>
         )}
       </section>

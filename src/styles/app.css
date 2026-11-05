@@ -353,3 +353,9 @@ tbody tr:last-child td { border-bottom: 0; }
 
 @keyframes tilt-in { from { opacity: 0; transform: translateY(24px) rotate(-6deg); } }
 .receipt-tilted { animation: tilt-in .7s cubic-bezier(.2, .7, .2, 1) backwards; }
+
+/* Months without receipts keep their slot, drawn as a thin tick like empty days on the overview. */
+.month-bar.is-empty { height: 2px; background: var(--line); border-radius: 1px; animation: none; }
+.month-label.is-quiet { color: var(--muted); opacity: .8; }
+.chart-hint { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin-top: 0; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.chart-hint p { font-size: 15px; }
