@@ -6,9 +6,9 @@ Turn a receipt photo into an editable list of purchases. Review the scanned item
 
 ## Demo
 
-![Illustrated walkthrough showing a receipt upload, four editable items, a matching $5.12 subtotal, and the saved receipt](docs/receipt-demo.gif)
+![Walkthrough of CartTrail: the overview, scanning a receipt, fixing a misread price so the items match the printed $5.12 subtotal, confirming the store branch, saving, and the updated overview](docs/receipt-demo.gif)
 
-The animation illustrates the workflow using the H-E-B receipt tested during development.
+The animation walks through the workflow with sample data: a scan misreads one price, the subtotal check flags a $0.50 difference, and fixing the line clears it before the receipt is saved.
 
 ## How it works
 
