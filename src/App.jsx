@@ -11,7 +11,10 @@ import { Avatar, Icon, LoadingReceipt, Logo, ReceiptPaper } from './ui'
 import { greeting, primeAudio, printFeedback, receiptFooter, usePrefs } from './delight'
 import { receiptImpact } from './insights'
 import { makeSampleReceipts } from './sampleData'
-import { ACCEPT, MAX_BYTES, isReceiptFile, takeSharedFiles } from './shared'
+import { ACCEPT, MAX_BYTES, isReceiptFile, takeSharedFiles, withTimeout } from './shared'
+
+// How long to wait for a scan before giving up (a build variable so it can be shortened for testing).
+const SCAN_TIMEOUT = Number(import.meta.env.VITE_SCAN_TIMEOUT_MS) || 70_000
 import { supabase } from './supabase'
 
 function todayForDateInput() {
@@ -87,6 +90,7 @@ function Tracker({ user, recovery }) {
   const [skippedNote, setSkippedNote] = useState('')
   const [impact, setImpact] = useState([])
   const [savedTrip, setSavedTrip] = useState(null)
+  const [retryFile, setRetryFile] = useState(null)
   const { tone } = usePrefs()
   const [budgetReady, setBudgetReady] = useState(false)
   const [profile, setProfile] = useState({ display_name: '', avatar_path: null })
@@ -269,6 +273,7 @@ function Tracker({ user, recovery }) {
   async function scanFile(file) {
     setImpact([])
     setSavedTrip(null)
+    setRetryFile(null)
     setBusy(true)
     setSaved(false)
     setBranchSkipped(false)
@@ -278,7 +283,7 @@ function Tracker({ user, recovery }) {
       const body = new FormData()
       body.append('photo', file)
 
-      const { data, error } = await supabase.functions.invoke('hyper-handler', { body })
+      const { data, error } = await withTimeout(supabase.functions.invoke('hyper-handler', { body }), SCAN_TIMEOUT)
       if (error) {
         console.error('Receipt scan failed:', error, error.context)
         const details = error.context instanceof Response
@@ -321,7 +326,10 @@ function Tracker({ user, recovery }) {
         await locateBranch(data.address ?? '', data.store ?? '', data.country ?? '')
       }
     } catch (error) {
-      setMessage(error.message, 'error')
+      setRetryFile(file)
+      setMessage(error.name === 'TimeoutError'
+        ? 'That took too long. Check your connection and try again, or try a clearer photo.'
+        : error.message, 'error')
     } finally {
       setBusy(false)
     }
@@ -610,6 +618,7 @@ function Tracker({ user, recovery }) {
   }
 
   function discardScan() {
+    setRetryFile(null)
     setQueue([])
     setSkippedNote('')
     setImpact([])
@@ -866,6 +875,9 @@ function Tracker({ user, recovery }) {
                   )}
                   {notice.text && (
                     <p className={notice.tone === 'error' ? 'note note-warn' : 'note'} role="status" aria-busy={busy}>{notice.text}</p>
+                  )}
+                  {retryFile && !busy && (
+                    <div><button className="btn btn-secondary" type="button" onClick={() => scanFile(retryFile)}>Try this file again</button></div>
                   )}
 
                   <label className="field">Save to

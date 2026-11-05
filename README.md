@@ -112,6 +112,14 @@ Azure's receipt model often leaves its `Subtotal` field empty for grocery receip
 
 The response includes `subtotalSource` (`azure`, `text`, `total` or `total-minus-tax`) to help debug a receipt. When the subtotal was worked back from the total, the review screen shows it in an editable "Printed subtotal" field with a note, so the user can correct it. If nothing is found, the field is empty and the user can type it in, so the check still works. Redeploy the function after changing it (`supabase functions deploy hyper-handler`, or paste `index.ts` into the dashboard editor).
 
+### Scans that stall
+
+The scanner never leaves the app waiting forever:
+
+- **The function** puts a deadline on each step that has no limit of its own: 10 seconds for the sign-in check and 20 for reading the upload (Azure's calls already stop at 45 seconds). A step that stalls returns a 504 saying which one, and the reason is written to the function's logs.
+- **The log** also marks each stage (`scan: signed in`, `file received`, `Azure answered the upload with 202`, `Azure is still running`, `Azure finished`), so a stuck scan shows where it stopped.
+- **The app** stops waiting after 70 seconds (`VITE_SCAN_TIMEOUT_MS` changes it, for testing), says "That took too long", and offers **Try this file again**. The same button appears after any failed scan.
+
 ## Trends and the spending map
 
 Trends charts show monthly spending, product prices per recorded unit, and category spending. Period and store filters apply to the charts, rankings and map. **Price watch** compares each product's latest per-unit price with its price three months earlier, and uses the store filter but not the period filter. The figures come from saved receipt lines in USD.
