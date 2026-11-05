@@ -14,7 +14,9 @@ self.addEventListener('push', (event) => {
   const options = {
     body: typeof data.body === 'string' ? data.body : '',
     icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    // The status-bar icon must be a flat white shape on a transparent background; Android paints any opaque
+    // pixel white, so the colour app icon would show as a white square.
+    badge: '/badge.png',
     data: { url: typeof data.url === 'string' ? data.url : '/' },
   }
   if (typeof data.tag === 'string') options.tag = data.tag
