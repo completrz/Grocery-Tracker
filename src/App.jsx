@@ -59,6 +59,22 @@ function SignIn() {
     }
   }
 
+  async function signInWithGoogle() {
+    setBusy(true)
+    setMessage('')
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: new URL('/', window.location.origin).href },
+      })
+      if (error) throw error
+    } catch (error) {
+      setMessage(error.message)
+      setBusy(false)
+    }
+  }
+
   return (
     <form onSubmit={signIn}>
       <p>
@@ -68,6 +84,11 @@ function SignIn() {
         <label>Password <input name="password" type="password" required /></label>
       </p>
       <button disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+      <p>
+        <button type="button" disabled={busy} onClick={signInWithGoogle}>
+          Sign in with Google
+        </button>
+      </p>
       <p role="status">{message}</p>
     </form>
   )
