@@ -90,13 +90,13 @@ Apply these in order. The app detects missing migrations and degrades gracefully
 
 ## Reading the printed subtotal
 
-Azure's receipt model often leaves its `Subtotal` field empty for grocery receipts such as H-E-B's, so [`hyper-handler`](supabase/functions/hyper-handler/index.ts) picks the subtotal in this order (see [`subtotal.ts`](supabase/functions/hyper-handler/subtotal.ts)):
+Azure's receipt model often leaves its `Subtotal` field empty for grocery receipts, and H-E-B receipts print no `SUBTOTAL` line at all, only `Total Sale` and the amount. So [`hyper-handler`](supabase/functions/hyper-handler/index.ts) picks the subtotal in this order (the logic sits at the top of the same file, so the function can be pasted into the Supabase dashboard as a single file):
 
 1. Azure's own `Subtotal` field.
 2. The amount printed after a `SUBTOTAL` label in the receipt text, on the same line or the next one. Amounts printed before the label are ignored.
-3. Total minus tax, but only when Azure read both.
+3. The receipt's total (Azure's `Total` field, or the amount after a `Total`, `Total Sale`, `Amount Due` or `Balance Due` label) minus any tax (Azure's `TotalTax`, or amounts on `TAX` lines). Labels with extra words, such as `TOTAL SAVINGS`, are not totals.
 
-The response includes `subtotalSource` (`azure`, `text` or `total-minus-tax`) to help debug a receipt. If none of these finds a subtotal, the review screen asks the user to type it in, so the subtotal check still works. Redeploy the function after changing it (`supabase functions deploy hyper-handler`).
+The response includes `subtotalSource` (`azure`, `text`, `total` or `total-minus-tax`) to help debug a receipt. When the subtotal was worked back from the total, the review screen shows it in an editable "Printed subtotal" field with a note, so the user can correct it. If nothing is found, the field is empty and the user can type it in, so the check still works. Redeploy the function after changing it (`supabase functions deploy hyper-handler`, or paste `index.ts` into the dashboard editor).
 
 ## Trends and the spending map
 

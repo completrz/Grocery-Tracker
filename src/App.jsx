@@ -65,6 +65,8 @@ function Tracker({ email, userId }) {
   const [azureSubtotal, setAzureSubtotal] = useState(null)
   // A string while the scan found no printed subtotal and the user can type it in; null otherwise.
   const [manualSubtotal, setManualSubtotal] = useState(null)
+  // True while the shown subtotal was worked back from the receipt's total rather than read from a subtotal line.
+  const [subtotalDerived, setSubtotalDerived] = useState(false)
   const [notice, setNotice] = useState({ text: '', tone: 'info' })
   const [loaded, setLoaded] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -261,7 +263,9 @@ function Tracker({ email, userId }) {
       }
 
       setAzureSubtotal(data.subtotal ?? null)
-      setManualSubtotal(data.subtotal == null ? '' : null)
+      const derived = data.subtotal != null && ['total', 'total-minus-tax'].includes(data.subtotalSource)
+      setSubtotalDerived(derived)
+      setManualSubtotal(data.subtotal == null ? '' : derived ? String(data.subtotal) : null)
       if (!receiptId) {
         setStore(data.store ?? '')
       }
@@ -387,6 +391,7 @@ function Tracker({ email, userId }) {
       setPreviewUrl('')
       setAzureSubtotal(null)
     setManualSubtotal(null)
+      setSubtotalDerived(false)
       setBranchDraft(null)
       setBranchSkipped(false)
       setBranchMessage('')
@@ -483,6 +488,7 @@ function Tracker({ email, userId }) {
     setPreviewUrl('')
     setAzureSubtotal(null)
     setManualSubtotal(null)
+      setSubtotalDerived(false)
     setBranchDraft(null)
     setBranchSkipped(false)
     setBranchMessage('')
@@ -797,13 +803,16 @@ function Tracker({ email, userId }) {
                       <p className="note" role="status">
                         {subtotalCents === null
                           ? 'The scanner couldn’t read a printed subtotal. Type it from your receipt and CartTrail will check your items against it.'
-                          : 'Using the subtotal you typed.'}
+                          : subtotalDerived
+                            ? 'This receipt doesn’t print a separate subtotal, so CartTrail used its total (less any tax). If your receipt shows something different, change it here.'
+                            : 'Using the subtotal you typed.'}
                       </p>
                       <label className="field">Printed subtotal ($)
                         <input type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={manualSubtotal}
                           onChange={(event) => {
                             const value = event.target.value
                             setManualSubtotal(value)
+                            setSubtotalDerived(false)
                             setSaved(false)
                             const amount = Number(value)
                             setAzureSubtotal(value.trim() !== '' && Number.isFinite(amount) && amount >= 0 ? amount : null)
