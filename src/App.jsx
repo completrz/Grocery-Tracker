@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import './styles/app.css'
 import Trends from './Trends'
 import PlaceSearch from './PlaceSearch'
-import AppSettings from './AppSettings'
+import Profile from './Profile'
 import Overview from './Overview'
 import SignIn from './SignIn'
 import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
 import { dollars, formatDate, formatShortDate, receiptLines, receiptTotal } from './format'
-import { Icon, Logo, ReceiptPaper } from './ui'
+import { Avatar, Icon, Logo, ReceiptPaper } from './ui'
 import { receiptImpact } from './insights'
 import { makeSampleReceipts } from './sampleData'
 import { ACCEPT, MAX_BYTES, isReceiptFile, takeSharedFiles } from './shared'
@@ -28,10 +28,13 @@ function blankItem() {
 export default function App() {
   const [session, setSession] = useState(null)
   const [ready, setReady] = useState(false)
+  const [recovery, setRecovery] = useState(false)
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, nextSession) => {
+      (event, nextSession) => {
+        // Following a password-reset email signs the user in and sends them to set a new password.
+        if (event === 'PASSWORD_RECOVERY') setRecovery(true)
         setSession(nextSession)
         setReady(true)
       },
@@ -48,11 +51,16 @@ export default function App() {
     )
   }
   return session
-    ? <Tracker key={session.user.id} email={session.user.email} userId={session.user.id} />
+    ? <Tracker key={session.user.id} recovery={recovery} user={{
+      id: session.user.id,
+      email: session.user.email,
+      hasPassword: (session.user.app_metadata?.providers ?? [session.user.app_metadata?.provider]).includes('email'),
+    }} />
     : <SignIn />
 }
 
-function Tracker({ email, userId }) {
+function Tracker({ user, recovery }) {
+  const userId = user.id
   const [receipts, setReceipts] = useState([])
   const [locationsReady, setLocationsReady] = useState(false)
   const [branchesReady, setBranchesReady] = useState(false)
@@ -78,6 +86,10 @@ function Tracker({ email, userId }) {
   const [skippedNote, setSkippedNote] = useState('')
   const [impact, setImpact] = useState([])
   const [budgetReady, setBudgetReady] = useState(false)
+  const [profile, setProfile] = useState({ display_name: '', avatar_path: null })
+  const [profileReady, setProfileReady] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState('')
+  const [avatarVersion, setAvatarVersion] = useState(0)
   const [budgetCents, setBudgetCents] = useState(null)
   const [branchSkipped, setBranchSkipped] = useState(false)
   const [branchSearchOpen, setBranchSearchOpen] = useState(false)
@@ -90,12 +102,22 @@ function Tracker({ email, userId }) {
   const [refresh, setRefresh] = useState(0)
   const [search, setSearch] = useState('')
   // The installed app's "Scan a receipt" shortcut opens /?scan=1 straight to the capture screen.
-  const [view, setView] = useState(() => new URLSearchParams(window.location.search).has('scan') ? 'capture' : 'overview')
+  const [view, setView] = useState(() => new URLSearchParams(window.location.search).has('scan') ? 'capture' : recovery ? 'profile' : 'overview')
   const [previewUrl, setPreviewUrl] = useState('')
   const [previewType, setPreviewType] = useState('image')
   const [dragging, setDragging] = useState(false)
 
   const setMessage = (text, tone = 'info') => setNotice({ text, tone })
+
+  useEffect(() => {
+    // The avatars bucket is private, so the picture is shown through a short-lived signed link.
+    if (!profile.avatar_path) return
+    let active = true
+    supabase.storage.from('avatars').createSignedUrl(profile.avatar_path, 3600).then(({ data }) => {
+      if (active && data?.signedUrl) setAvatarUrl(data.signedUrl)
+    })
+    return () => { active = false }
+  }, [profile.avatar_path, avatarVersion])
 
   useEffect(() => {
     if (previewUrl) return () => URL.revokeObjectURL(previewUrl)
@@ -109,6 +131,7 @@ function Tracker({ email, userId }) {
         .select('id, store, address, source_address, latitude, longitude')
       const rules = await supabase.from('receipt_category_rules').select('store_key, item_key, category')
       const budget = await supabase.from('grocery_budgets').select('monthly_cents').maybeSingle()
+      const profileResult = await supabase.from('profiles').select('display_name, avatar_path').maybeSingle()
       const hasCategories = !rules.error
       const columns = 'id, item_name, quantity, line_total_cents' + (hasCategories ? ', category' : '')
       const fields = 'id, store, purchased_on, receipt_items(' + columns + ')' + (!branchResult.error ? ', store_branch_id' : '')
@@ -123,6 +146,8 @@ function Tracker({ email, userId }) {
       setLoaded(true)
       setBudgetReady(!budget.error)
       setBudgetCents(budget.data?.monthly_cents ?? null)
+      setProfileReady(!profileResult.error)
+      setProfile({ display_name: profileResult.data?.display_name ?? '', avatar_path: profileResult.data?.avatar_path ?? null })
       setLocationsReady(!missingLocationColumns && !error)
       setBranchesReady(!branchResult.error)
       setBranches(branchResult.data ?? [])
@@ -465,6 +490,61 @@ function Tracker({ email, userId }) {
   )
   const subtotalMatches = missingPrices === 0 && enteredCents === subtotalCents
 
+  async function saveProfile(patch) {
+    const { error } = await supabase.from('profiles').upsert(
+      { user_id: userId, ...patch, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' },
+    )
+    if (error) throw error
+    setProfile((current) => ({ ...current, ...patch }))
+  }
+
+  // Avatars are cropped to a square and shrunk in the browser first. Redrawing also drops any location data in the photo.
+  async function uploadAvatar(file) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > 8_000_000) {
+      throw new Error('Choose a JPEG, PNG or WebP picture under 8 MB.')
+    }
+    let bitmap
+    try {
+      bitmap = await createImageBitmap(file)
+    } catch {
+      throw new Error('That picture couldn’t be read. Try a different one.')
+    }
+    const side = Math.min(bitmap.width, bitmap.height)
+    const canvas = document.createElement('canvas')
+    canvas.width = 256
+    canvas.height = 256
+    canvas.getContext('2d').drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 256, 256)
+    bitmap.close?.()
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85))
+    if (!blob) throw new Error('That picture couldn’t be prepared. Try a different one.')
+    const path = `${userId}/avatar.jpg`
+    const { error } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+    if (error) throw new Error('Couldn’t save your picture. Try again in a moment.')
+    await saveProfile({ avatar_path: path })
+    setAvatarVersion((current) => current + 1)
+  }
+
+  async function removeAvatar() {
+    const { error } = await supabase.storage.from('avatars').remove([`${userId}/avatar.jpg`])
+    if (error) throw error
+    await saveProfile({ avatar_path: null })
+    setAvatarUrl('')
+  }
+
+  // Called once the server has deleted the user's data or account.
+  async function handleDeleted(scope) {
+    if (scope === 'account') {
+      try { window.sessionStorage.setItem('carttrail-deleted', '1') } catch { /* the note is optional */ }
+      await supabase.auth.signOut()
+      return
+    }
+    setBudgetCents(null)
+    setBranchDraft(null)
+    setRefresh((current) => current + 1)
+    openView('overview')
+  }
+
   async function saveBudget(cents) {
     const { error } = await supabase.from('grocery_budgets')
       .upsert({ user_id: userId, monthly_cents: cents }, { onConflict: 'user_id' })
@@ -555,8 +635,10 @@ function Tracker({ email, userId }) {
             ))}
           </nav>
           <div className="header-actions">
-            <span className="account-email" title={email}>{email}</span>
-            <button className="btn btn-tertiary" type="button" disabled={busy} onClick={signOut}>Sign out</button>
+            <button type="button" className="avatar-button" aria-label="Your profile" aria-current={view === 'profile' ? 'page' : undefined}
+              title={profile.display_name || user.email} onClick={() => openView('profile')}>
+              <Avatar name={profile.display_name} email={user.email} userId={userId} url={profile.avatar_path ? avatarUrl : ''} size={40} />
+            </button>
             <button className="btn btn-primary" type="button" aria-label="Scan a receipt" onClick={startScan}><Icon name="scan" /> <span>Scan<span className="hide-sm"> a receipt</span></span></button>
           </div>
         </div>
@@ -582,12 +664,18 @@ function Tracker({ email, userId }) {
 
         <div className="view" key={view}>
         {view === 'overview' && (
-          <>
-            <Overview receipts={shown} rules={categoryRules} loaded={loaded} error={historyError}
-              budget={sampleMode || !budgetReady ? null : { cents: budgetCents, save: saveBudget }}
-              onScan={startScan} onOpenReceipt={openReceipt} onOpenView={openView} />
-            <AppSettings userId={userId} />
-          </>
+          <Overview receipts={shown} rules={categoryRules} loaded={loaded} error={historyError}
+            budget={sampleMode || !budgetReady ? null : { cents: budgetCents, save: saveBudget }}
+            onScan={startScan} onOpenReceipt={openReceipt} onOpenView={openView} />
+        )}
+
+        {view === 'profile' && (
+          <Profile user={user} profile={profile} profileReady={profileReady} avatarUrl={profile.avatar_path ? avatarUrl : ''}
+            recovery={recovery} sample={sampleMode}
+            budget={sampleMode || !budgetReady ? null : { cents: budgetCents, save: saveBudget }}
+            receiptCount={receipts.length} itemCount={receipts.reduce((sum, receipt) => sum + receipt.receipt_items.length, 0)}
+            onSaveProfile={saveProfile} onUploadAvatar={uploadAvatar} onRemoveAvatar={removeAvatar}
+            onSignOut={signOut} onExport={exportCsv} onDeleted={handleDeleted} />
         )}
 
         {view === 'trends' && (
@@ -1015,6 +1103,14 @@ function Tracker({ email, userId }) {
         )}
         </div>
       </main>
+
+      <footer className="container site-footer">
+        <nav aria-label="Legal and support">
+          <a href="/privacy/">Privacy</a>
+          <a href="/terms/">Terms</a>
+          <a href="/support/">Support</a>
+        </nav>
+      </footer>
     </div>
   )
 }

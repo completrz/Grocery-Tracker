@@ -21,6 +21,7 @@
 - **Know where you shop.** Pin a receipt to a store branch and see all your stores on a map, sized by what you spend there. CartTrail suggests the branch from the address on the receipt.
 - **Share receipts straight in.** On Android, once CartTrail is installed, it appears in the Share menu: share a screenshot or PDF from Photos, Gmail or Files and it opens ready to review.
 - **Take it with you.** Install CartTrail on your home screen for a one-tap "Scan a receipt" shortcut, turn on notifications (a weekly summary, budget alerts and a nudge when you've gone quiet, each optional), and export everything to CSV any time.
+- **Make it yours.** A Profile page (the circle at the top right) holds your name and picture, password, budget, time zone, notifications, install button, CSV export, and options to delete your data or your whole account.
 - **Look around before you start.** A new account with no receipts sees clearly labelled sample data, so you can see what the app looks like with history. It disappears as soon as you save your first receipt.
 
 CartTrail works on a phone as well as a desktop.
@@ -67,6 +68,11 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 VITE_VAPID_PUBLIC_KEY=your-vapid-public-key
 # Optional: the notifier function's name, if it isn't `notify`
 VITE_NOTIFY_FUNCTION=notify
+# Shown on the public privacy, terms and support pages
+VITE_CONTACT_EMAIL=you@example.com
+VITE_OPERATOR_NAME=Your name or company
+# The deletion function's name, if it isn't `delete-account`
+VITE_DELETE_FUNCTION=delete-account
 ```
 
 | Script | What it does |
@@ -92,6 +98,7 @@ Apply these in order. The app detects missing migrations and degrades gracefully
 | [`20261105010000_receipt_locations.sql`](supabase/migrations/20261105010000_receipt_locations.sql) | Coordinates on receipts, which enable the spending map. |
 | [`20261105020000_saved_store_branches.sql`](supabase/migrations/20261105020000_saved_store_branches.sql) | Saved store branches and the `save_grocery_receipt_at_branch` function. Apply after the two above, and redeploy `hyper-handler`. |
 | [`20261105030000_monthly_budget.sql`](supabase/migrations/20261105030000_monthly_budget.sql) | The `grocery_budgets` table (one monthly budget per user, with row-level security). Until it is applied, the budget panel is simply hidden. |
+| [`20261105050000_profiles.sql`](supabase/migrations/20261105050000_profiles.sql) | `profiles` (display name and avatar path, private to the user) and the private `avatars` storage bucket with per-user access rules. Until it is applied, the name and picture options are hidden. |
 | [`20261105040000_push_notifications.sql`](supabase/migrations/20261105040000_push_notifications.sql) | `push_subscriptions` (one row per device, endpoints limited to known push services), `notification_settings` (the user's choices and time zone) and `notification_log` (what was already sent; server only). Until it is applied, the notifications panel is hidden. |
 
 ## Reading the printed subtotal
@@ -126,9 +133,37 @@ The overview's **What changed** list is computed in [`src/insights.js`](src/insi
 - **Savings finder** (`savingsEstimate`) uses the last 90 days of receipts and the same like-for-like name matching as the store comparison. It only appears when the estimated saving is $3 a month or more.
 - **Budget.** A single monthly total per user, stored in `grocery_budgets`. The panel shows spend this calendar month, what is left, and a projection (from day 7) of where the month will end.
 
+## Profile and account
+
+The circle at the top right opens the Profile page (`src/Profile.jsx`):
+
+- **Account:** an optional display name (up to 60 characters), a picture, the email and sign-in method, change password (email sign-ins only) and sign out. Pictures are cropped to a 256 px square and re-encoded as JPEG in the browser before upload, which also removes any EXIF or location data. They are stored in the private `avatars` bucket at `<user id>/avatar.jpg` and shown through a one-hour signed link.
+- **Preferences:** the monthly budget and the time zone used for notification times.
+- **Notifications and install:** the cards described below.
+- **Your data:** a summary, CSV export, and two deletion options.
+- **Forgot password:** the sign-in page sends a reset email; following the link signs the user in and opens the Profile with the change-password form open. Set the Site URL and Redirect URLs under Authentication, URL Configuration in Supabase to the live site, or reset links will point to the wrong place.
+
+### Deleting data and accounts
+
+[`delete-account`](supabase/functions/delete-account/index.ts) is a single-file Edge Function (deploy it with **Verify JWT** off; it authenticates the caller itself). It takes `{ "scope": "data" | "account", "confirm": "DELETE" }`:
+
+- `data` removes the user's receipts, items, saved store branches, remembered categories and budget, and keeps the account.
+- `account` also removes the profile, avatar, notification settings, devices and log, and finally the sign-in itself.
+
+The caller must have signed in within the last 30 minutes, so the app asks email users for their password first (which refreshes that), and Google users who signed in a while ago are told to sign out and back in. Required tables are emptied first and any failure stops before the sign-in is touched, so a failed deletion can simply be retried. Tables from optional migrations that were never applied are skipped. The Profile calls the function named by `VITE_DELETE_FUNCTION` (default `delete-account`), because the dashboard editor names new functions at random.
+
+### Public pages
+
+The privacy policy (`/privacy/`), terms (`/terms/`), support (`/support/`) and how-to-delete (`/delete-account/`) pages are plain static pages, written in [`legal/`](legal) and built by [`vite-legal.js`](vite-legal.js). They work without signing in or running any script, which the app stores and search engines need, and every page links to the others. Set these at build time (Cloudflare build variables, or `.env.local`):
+
+- `VITE_CONTACT_EMAIL`: the address shown on all four pages. Until it is set the pages say "[contact email not set]" and the build prints a warning.
+- `VITE_OPERATOR_NAME`: who runs the service (default "the CartTrail operator").
+
+The text describes what the app does today. Read it and adjust it (the 30-day promise for email requests, the age statement, governing law) before relying on it, and have a lawyer review it if you publish the app widely. Update `legal/meta.json` when you change them.
+
 ## Installing the app
 
-`public/manifest.json`, the icons and a small service worker make CartTrail installable. The overview's "Get the app and notifications" section shows an **Install CartTrail** button where the browser allows it (Chrome and Edge), and the steps for iPhone (Share, then Add to Home Screen) and other browsers. The installed app has a "Scan a receipt" shortcut that opens `/?scan=1` straight to the capture screen. The service worker caches nothing, so users never see a stale version.
+`public/manifest.json`, the icons and a small service worker make CartTrail installable. The **Profile** page shows an **Install CartTrail** button where the browser allows it (Chrome and Edge), and the steps for iPhone (Share, then Add to Home Screen) and other browsers. The installed app has a "Scan a receipt" shortcut that opens `/?scan=1` straight to the capture screen. The service worker caches nothing, so users never see a stale version.
 
 ### Getting receipts in without the camera
 
@@ -137,7 +172,7 @@ The overview's **What changed** list is computed in [`src/insights.js`](src/insi
 
 ## Push notifications
 
-Users turn notifications on from the same section. They can choose three kinds and turn each off:
+Users turn notifications on from their Profile. They can choose three kinds and turn each off:
 
 - **Weekly summary:** Sunday at 10am local time, what was spent in the last 7 days against the 7 before.
 - **Budget alerts:** once at 80% and once at 100% of the monthly budget, each at most once a month.
@@ -193,7 +228,9 @@ When an account has no saved receipts, the overview, Receipts and Trends pages r
 | `src/Overview.jsx` | Overview: 30-day total, spending by day, latest receipt, recent receipts and categories. |
 | `src/Trends.jsx`, `src/TrendChart.jsx` | Trends page, filters, Price watch and the interactive history charts. |
 | `src/SpendingMap.jsx`, `src/PlaceSearch.jsx` | Leaflet map, branch list, pinning, and store-name search. |
-| `src/SignIn.jsx` | Email and Google sign-in. |
+| `src/SignIn.jsx` | Email and Google sign-in, and password reset. |
+| `src/Profile.jsx` | The Profile page: account, preferences, data export and deletion. |
+| `legal/`, `vite-legal.js` | The public privacy, terms, support and deletion pages and the build step that renders them. |
 | `src/ui.jsx` | Shared pieces: icons, logo, the `ReceiptPaper` component and placeholder shapes. |
 | `src/categories.js`, `src/format.js`, `src/sampleData.js` | Category matching, formatting helpers and the sample dataset. |
 | `src/styles/` | Design tokens (`tokens.css`) and application styles (`app.css`). |

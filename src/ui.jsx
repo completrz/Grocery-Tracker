@@ -122,3 +122,16 @@ export function GhostReceipt() {
     </div>
   )
 }
+
+// A circle with the user's picture, or their initial on a colour that is stable for their account.
+const AVATAR_COLORS = ['#1D5C3A', '#2F5D62', '#7A3B1D', '#4F5B2A', '#8A3A3A', '#3F4A52']
+
+export function Avatar({ name, email, userId, url, size = 36 }) {
+  const initial = (Array.from((name || '').trim())[0] ?? Array.from(email || '?')[0]).toUpperCase()
+  let hash = 0
+  for (const char of userId || email || '') hash = (hash * 31 + char.charCodeAt(0)) | 0
+  const style = { width: size, height: size, fontSize: Math.round(size * 0.45) }
+  return url
+    ? <img className="avatar" src={url} alt="" style={style} />
+    : <span className="avatar" aria-hidden="true" style={{ ...style, background: AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length] }}>{initial}</span>
+}
