@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
+import Trends from './Trends'
 import { supabase } from './supabase'
 
 const dollars = new Intl.NumberFormat('en-US', {
@@ -106,8 +107,7 @@ function SignIn() {
       <div className="auth-intro">
         <Brand />
         <div>
-          <p className="eyebrow">Your grocery receipts</p>
-          <h1>Know what you paid.</h1>
+          <h1>Grocery spending, by receipt.</h1>
           <p>Scan your receipts, check the items, and see your spending over time.</p>
         </div>
       </div>
@@ -142,6 +142,7 @@ function Tracker({ email }) {
   const [busy, setBusy] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const [search, setSearch] = useState('')
+  const [view, setView] = useState('overview')
   const [previewUrl, setPreviewUrl] = useState('')
   const [currentMonth] = useState(() => {
     const now = new Date()
@@ -319,19 +320,24 @@ function Tracker({ email }) {
   }
 
   const monthlyTotals = new Map()
+  let recordedReceipts = 0
+  let lifetimeCents = 0
   for (const receipt of receipts) {
     if (receipt.receipt_items.length === 0) continue
     const month = receipt.purchased_on.slice(0, 7)
-    monthlyTotals.set(month, (monthlyTotals.get(month) ?? 0) + receiptTotal(receipt))
+    const cents = receiptTotal(receipt)
+    recordedReceipts += 1
+    lifetimeCents += cents
+    monthlyTotals.set(month, (monthlyTotals.get(month) ?? 0) + cents)
   }
 
   const months = [...monthlyTotals]
   const maxMonth = Math.max(1, ...monthlyTotals.values())
-  const query = search.trim().toLowerCase()
+  const query = search.trim().toLowerCase().replace(/\s+/g, ' ')
   const visibleReceipts = receipts.filter((receipt) =>
-    receipt.store.toLowerCase().includes(query) ||
+    receipt.store.toLowerCase().replace(/\s+/g, ' ').includes(query) ||
     receipt.purchased_on.includes(query) ||
-    receipt.receipt_items.some((item) => item.item_name.toLowerCase().includes(query)),
+    receipt.receipt_items.some((item) => item.item_name.toLowerCase().replace(/\s+/g, ' ').includes(query)),
   )
   const subtotalMatches = missingPrices === 0 && enteredCents === subtotalCents
 
@@ -339,10 +345,12 @@ function Tracker({ email }) {
     <>
       <header className="topbar">
         <div className="topbar-inner">
-          <a href="#overview" className="brand-link"><Brand /></a>
+          <button type="button" className="brand-link" onClick={() => setView('overview')}><Brand /></button>
           <nav aria-label="Dashboard">
-            <a href="#capture">Add receipt</a>
-            <a href="#history">History</a>
+            {Object.entries({ overview: 'Overview', trends: 'Trends', receipts: 'Receipts' }).map(([key, label]) => (
+              <button key={key} type="button" aria-current={view === key ? 'page' : undefined}
+                onClick={() => setView(key)}>{label}</button>
+            ))}
           </nav>
           <div className="account">
             <span title={email}>{email}</span>
@@ -354,14 +362,22 @@ function Tracker({ email }) {
       <main className="dashboard" id="overview">
         <div className="page-heading">
           <div>
-            <p className="eyebrow">Your spending dashboard</p>
-            <h1>Receipt overview</h1>
-            <p className="muted">Scan, review, and track what you paid.</p>
+            <h1>{{ overview: 'Spending overview', trends: 'Trends', receipts: 'Receipt history', capture: 'Add a receipt' }[view]}</h1>
+            <p className="muted">{{
+              overview: 'Spending from your saved receipts.',
+              trends: 'Track what you paid for repeat purchases and where your spending goes.',
+              receipts: 'Find past purchases by store, item, or date.',
+              capture: 'Upload a receipt photo or enter your purchases by hand.',
+            }[view]}</p>
           </div>
-          <a className="button primary" href="#capture"><Icon name="plus" /> Add receipt</a>
+          {view !== 'capture' && (
+            <button className="button primary" type="button" onClick={() => setView('capture')}>
+              <Icon name="plus" /> Add receipt
+            </button>
+          )}
         </div>
 
-        <section className="metrics" aria-label="Spending summary">
+        <section className="metrics" aria-label="Spending summary" hidden={view !== 'overview'}>
           <div className="metric featured">
             <span>This month</span>
             <strong>{dollars.format((monthlyTotals.get(currentMonth) ?? 0) / 100)}</strong>
@@ -373,19 +389,21 @@ function Tracker({ email }) {
             <small>All time</small>
           </div>
           <div className="metric">
+            <span>Average receipt</span>
+            <strong>{recordedReceipts ? dollars.format(lifetimeCents / recordedReceipts / 100) : '—'}</strong>
+            <small>Receipts with items</small>
+          </div>
+          <div className="metric">
             <span>Latest receipt</span>
             <strong>{receipts[0]?.store ?? '—'}</strong>
             <small>{receipts[0] ? dateLabel.format(new Date(receipts[0].purchased_on)) : 'No receipts yet'}</small>
           </div>
         </section>
 
-        <div className="dashboard-grid">
-          <section className="panel" id="capture" aria-labelledby="capture-title">
-            <div className="panel-heading">
-              <p className="eyebrow">Capture and review</p>
-              <h2 id="capture-title">Add a receipt</h2>
-              <p className="muted">Start with a photo or enter items by hand.</p>
-            </div>
+        {view === 'trends' && <Trends receipts={receipts} />}
+
+        <div className="workspace-content" data-view={view} hidden={view === 'trends'}>
+          <section className="panel capture-panel" id="capture" aria-label="Receipt entry" hidden={view !== 'capture'}>
             <form onSubmit={saveReceipt}>
               <fieldset className="form-body" disabled={busy}>
                 <label className="upload">
@@ -486,10 +504,8 @@ function Tracker({ email }) {
             </form>
           </section>
 
-          <aside className="dashboard-side">
-            <section className="panel" aria-labelledby="spending-title">
+            <section className="panel" aria-labelledby="spending-title" hidden={view !== 'overview'}>
               <div className="panel-heading">
-                <p className="eyebrow">Spending trends</p>
                 <h2 id="spending-title">Monthly spending</h2>
                 <p className="muted">Saved line totals in USD.</p>
               </div>
@@ -508,10 +524,9 @@ function Tracker({ email }) {
               )}
             </section>
 
-            <section className="panel" id="history" aria-labelledby="history-title">
+            <section className="panel" id="history" aria-labelledby="history-title" hidden={view === 'capture'}>
               <div className="panel-heading">
-                <p className="eyebrow">Saved purchases</p>
-                <h2 id="history-title">Receipt history</h2>
+                <h2 id="history-title">{view === 'overview' ? 'Recent receipts' : 'Saved receipts'}</h2>
                 <label className="search"><Icon name="search" />
                   <input type="search" aria-label="Search receipts" placeholder="Search stores, items, or dates"
                     value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -522,7 +537,7 @@ function Tracker({ email }) {
                 <p className="empty">{query ? 'No receipts match your search.' : 'No receipts yet.'}</p>
               )}
               <div className="history-list">
-                {visibleReceipts.map((receipt) => (
+                {(view === 'overview' && !query ? visibleReceipts.slice(0, 5) : visibleReceipts).map((receipt) => (
                   <details key={receipt.id} className="history-receipt">
                     <summary>
                       <span className="history-icon"><Icon name="receipt" /></span>
@@ -543,14 +558,16 @@ function Tracker({ email }) {
                       </ul>
                       <button className="button quiet" type="button" disabled={busy} onClick={() => {
                         setReceiptId(receipt.id)
-                        document.getElementById('capture').scrollIntoView()
+                        setView('capture')
                       }}>Add items to this receipt</button>
                     </div>
                   </details>
                 ))}
               </div>
+              {view === 'overview' && receipts.length > 5 && !query && (
+                <button className="button quiet" type="button" onClick={() => setView('receipts')}>View all receipts</button>
+              )}
             </section>
-          </aside>
         </div>
       </main>
     </>
