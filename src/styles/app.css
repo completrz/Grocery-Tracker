@@ -453,3 +453,33 @@ tbody tr:last-child td { border-bottom: 0; }
 .site-footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; border-top: 1px solid var(--line); padding-top: 20px; font-size: 14px; }
 .site-footer a { color: var(--muted); font-weight: 500; }
 .site-footer a:hover { color: var(--ink); }
+
+/* Personality: rubber stamp, shelf tags, aisle signs, printing loader, share picture, quips */
+.receipt-body { position: relative; }
+.stamp {
+  position: absolute; right: 18px; bottom: 16px; transform: rotate(-9deg); padding: 4px 12px;
+  border: 3px solid var(--accent); border-radius: 4px; color: var(--accent); background: rgba(255, 255, 255, .55);
+  font: 700 20px/1.2 var(--font-receipt); letter-spacing: .1em; opacity: .9;
+  animation: stamp-in .35s .95s cubic-bezier(.2, 1.5, .4, 1) backwards;
+}
+@keyframes stamp-in { from { transform: rotate(-9deg) scale(1.9); opacity: 0; } }
+.has-stamp { padding-bottom: 64px; }
+.receipt-foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.receipt-foot-first { margin-top: 12px; }
+.receipt-foot strong { color: var(--ink); font-weight: 600; }
+.receipt-tail { text-align: center; font: 500 13px/1.6 var(--font-receipt); color: var(--muted); letter-spacing: .02em; margin-top: 18px; }
+.saved-receipt { width: 100%; max-width: 340px; }
+
+.chip { border-radius: 3px; padding: 3px 17px 3px 10px; clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%); }
+
+.aisle { display: inline-block; margin-right: 8px; padding: 1px 6px; border-radius: 4px; background: var(--ink); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .02em; vertical-align: 1px; }
+
+.printing { display: flex; flex-direction: column; gap: 12px; max-width: 320px; }
+.printing-row { animation: print-line .5s ease-out backwards; animation-delay: calc(var(--i, 0) * 160ms + 250ms); }
+@keyframes print-line { from { opacity: 0; transform: translateY(-4px); } }
+
+.greeting { margin: 0 0 -8px; font-size: 16px; font-weight: 600; color: var(--muted); }
+.quip { color: var(--muted); font-style: italic; }
+.share-preview { max-width: 380px; }
+.share-preview img { display: block; width: 100%; height: auto; border-radius: var(--radius-md); }
+.pref-block { display: flex; flex-direction: column; gap: 4px; }

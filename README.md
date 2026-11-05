@@ -22,6 +22,7 @@
 - **Share receipts straight in.** On Android, once CartTrail is installed, it appears in the Share menu: share a screenshot or PDF from Photos, Gmail or Files and it opens ready to review.
 - **Take it with you.** Install CartTrail on your home screen for a one-tap "Scan a receipt" shortcut, turn on notifications (a weekly summary, budget alerts and a nudge when you've gone quiet, each optional), and export everything to CSV any time.
 - **Make it yours.** A Profile page (the circle at the top right) holds your name and picture, password, budget, time zone, notifications, install button, CSV export, and options to delete your data or your whole account.
+- **Enjoy the details.** Saving a receipt prints it, with a CHECKED stamp when the items matched the printed subtotal and a line at the foot like a store's (with milestones at your 1st, 5th, 10th, 25th receipt and beyond). Your week or month can be printed as a receipt picture to save or share. Price changes are shelf tags, categories are aisles, and there's an optional printer sound, an optional buzz on phones, and a playful tone for the notes.
 - **Look around before you start.** A new account with no receipts sees clearly labelled sample data, so you can see what the app looks like with history. It disappears as soon as you save your first receipt.
 
 CartTrail works on a phone as well as a desktop.
@@ -161,6 +162,17 @@ The privacy policy (`/privacy/`), terms (`/terms/`), support (`/support/`) and h
 
 The text describes what the app does today. Read it and adjust it (the 30-day promise for email requests, the age statement, governing law) before relying on it, and have a lawyer review it if you publish the app widely. Update `legal/meta.json` when you change them.
 
+## Personality
+
+CartTrail's character lives in receipts, shelf tags and words, not in extra colours, gradients or constant animation. All motion is switched off under `prefers-reduced-motion`.
+
+- **Printing a receipt on save.** After a receipt is saved, the Saved screen prints it with `ReceiptPaper` (`src/ui.jsx`). The **CHECKED** stamp only appears when the items matched the printed subtotal at save time. The foot lines come from `receiptFooter` in `src/delight.js`: `ITEMS PURCHASED: n`, then a milestone line at receipt 1, 5, 10, 25, 50, 100, 250 and 500, otherwise a rotating thank-you.
+- **Your week or month as a receipt.** `src/summary.js` totals the last 7 days (or the month so far) by category, and `src/receiptImage.js` draws it on a canvas as an 832 px wide PNG with a highlighted subtotal, a barcode and a torn edge. It shows totals and category names only (no stores, no items), and the picture's alt text says the same in words. "Save image" downloads it; "Share" appears where the browser can share files.
+- **Shelf tags and aisles.** Every chip is shaped like a price tag, and categories carry "Aisle n" signs ranked by spend.
+- **Greeting.** The overview opens with "Good morning, Sam." using the Profile name.
+- **Printing loader.** While data loads, a receipt prints its lines one by one (`LoadingReceipt`).
+- **Little touches** (Profile, remembered on that device only, in local storage): a printer sound and a buzz when saving, both off by default and played from the save click so browsers allow them, plus a tone choice. The **playful** tone adds a short, kind aside to insight rows (for example "Your wallet noticed before you did.") and to the receipt picture's comparison line. The asides are written in `withQuip` in `src/insights.js`.
+
 ## Installing the app
 
 `public/manifest.json`, the icons and a small service worker make CartTrail installable. The **Profile** page shows an **Install CartTrail** button where the browser allows it (Chrome and Edge), and the steps for iPhone (Share, then Add to Home Screen) and other browsers. The installed app has a "Scan a receipt" shortcut that opens `/?scan=1` straight to the capture screen. The service worker caches nothing, so users never see a stale version.
@@ -229,7 +241,8 @@ When an account has no saved receipts, the overview, Receipts and Trends pages r
 | `src/Trends.jsx`, `src/TrendChart.jsx` | Trends page, filters, Price watch and the interactive history charts. |
 | `src/SpendingMap.jsx`, `src/PlaceSearch.jsx` | Leaflet map, branch list, pinning, and store-name search. |
 | `src/SignIn.jsx` | Email and Google sign-in, and password reset. |
-| `src/Profile.jsx` | The Profile page: account, preferences, data export and deletion. |
+| `src/Profile.jsx` | The Profile page: account, preferences, little touches, data export and deletion. |
+| `src/delight.js`, `src/summary.js`, `src/receiptImage.js`, `src/ShareReceipt.jsx` | Preferences, sound and buzz, greetings and receipt footers; the week and month totals; the canvas that draws the shareable receipt; and its panel on the overview. |
 | `legal/`, `vite-legal.js` | The public privacy, terms, support and deletion pages and the build step that renders them. |
 | `src/ui.jsx` | Shared pieces: icons, logo, the `ReceiptPaper` component and placeholder shapes. |
 | `src/categories.js`, `src/format.js`, `src/sampleData.js` | Category matching, formatting helpers and the sample dataset. |

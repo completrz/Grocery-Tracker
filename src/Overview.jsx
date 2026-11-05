@@ -1,8 +1,10 @@
 import { normalizeLabel, resolveCategory } from './categories'
 import { useState } from 'react'
+import { usePrefs } from './delight'
+import ShareReceipt from './ShareReceipt'
 import { buildInsights, savingsEstimate, unlockStatus } from './insights'
 import { dollars, formatDate, formatShortDate, localDayKey, plural, receiptLines, receiptTotal, shortDateLabel } from './format'
-import { CategoryBars, GhostBars, GhostReceipt, GhostRows, Icon, ReceiptPaper } from './ui'
+import { CategoryBars, GhostBars, GhostReceipt, GhostRows, Icon, LoadingReceipt, ReceiptPaper } from './ui'
 
 const DAYS = 30
 
@@ -142,16 +144,12 @@ function BudgetPanel({ budget, spentCents }) {
   )
 }
 
-export default function Overview({ receipts, rules, loaded, error, budget, onScan, onOpenReceipt, onOpenView }) {
+export default function Overview({ receipts, rules, loaded, error, budget, greeting, shareable, receiptCount, onScan, onOpenReceipt, onOpenView }) {
+  const { tone } = usePrefs()
   if (error) return <p className="note note-warn" role="alert">{error}</p>
 
   if (!loaded) {
-    return (
-      <div className="stack-xl" role="status" aria-label="Loading your receipts">
-        <div className="skeleton" style={{ height: 120, maxWidth: 640 }} />
-        <div className="skeleton" style={{ height: 200 }} />
-      </div>
-    )
+    return <LoadingReceipt label="Printing your receipts…" />
   }
 
   const withItems = receipts.filter((receipt) => receipt.receipt_items.length > 0)
@@ -160,6 +158,7 @@ export default function Overview({ receipts, rules, loaded, error, budget, onSca
       <div className="stack-xxl">
         <section className="split">
           <div className="split-main stack-lg">
+            {greeting && <p className="greeting">{greeting}</p>}
             <h1 className="headline">No receipts yet. Scan your first one to start tracking.</h1>
             <p className="lede">Your spending for the last 30 days, your latest receipt and where the money went will fill in here.</p>
             <div><button className="btn btn-primary btn-large" type="button" onClick={onScan}><Icon name="scan" /> Scan a receipt</button></div>
@@ -212,6 +211,7 @@ export default function Overview({ receipts, rules, loaded, error, budget, onSca
     <div className="stack-xxl">
       <section className="split">
         <div className="split-main stack-lg">
+          {greeting && <p className="greeting">{greeting}</p>}
           {trips === 0 ? (
             <>
               <h1 className="headline">You haven’t saved a receipt in the last 30 days.</h1>
@@ -244,7 +244,9 @@ export default function Overview({ receipts, rules, loaded, error, budget, onSca
             <button className="link-button" type="button" onClick={() => onOpenReceipt(latest.id)}>Open</button>
           </div>
           <ReceiptPaper store={latest.store} date={formatDate(latest.purchased_on)}
-            lines={receiptLines(latest.receipt_items)} subtotal={dollars.format(receiptTotal(latest) / 100)} />
+            lines={receiptLines(latest.receipt_items)} subtotal={dollars.format(receiptTotal(latest) / 100)}>
+            <div className="receipt-foot receipt-foot-first">ITEMS PURCHASED: {latest.receipt_items.length}</div>
+          </ReceiptPaper>
         </aside>
       </section>
 
@@ -260,7 +262,7 @@ export default function Overview({ receipts, rules, loaded, error, budget, onSca
                     <li key={row.id}>
                       <div>
                         <div className="strong">{row.text}</div>
-                        <div className="muted small">{row.detail}</div>
+                        <div className="muted small">{row.detail}{tone === 'playful' && row.quip && <span className="quip"> {row.quip}</span>}</div>
                       </div>
                       <span className={'chip chip-' + row.chip.tone}>{row.chip.label}</span>
                     </li>
@@ -284,7 +286,7 @@ export default function Overview({ receipts, rules, loaded, error, budget, onSca
           {savings && (
             <section aria-labelledby="savings-title">
               <h2 className="h-section" id="savings-title">Savings finder</h2>
-              <p className="muted spaced-bottom">Buying these at the cheaper store could have saved about {dollars.format(savings.perMonthCents / 100)} a month over the last 3 months.</p>
+              <p className="muted spaced-bottom">Buying these at the cheaper store could have saved about {dollars.format(savings.perMonthCents / 100)} a month over the last 3 months.{tone === 'playful' && <span className="quip"> The cheaper store has been waiting for you.</span>}</p>
               <ul className="insight-list">
                 {savings.rows.map((row) => (
                   <li key={row.key}>
@@ -331,6 +333,7 @@ export default function Overview({ receipts, rules, loaded, error, budget, onSca
             : <CategoryBars categories={categories} />}
           <button className="link-button spaced" type="button" onClick={() => onOpenView('trends')}>Open trends</button>
           </div>
+          {shareable && <ShareReceipt receipts={receipts} rules={rules} count={receiptCount} />}
         </div>
       </section>
     </div>

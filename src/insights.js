@@ -49,6 +49,24 @@ function windows(receipts, rules, now) {
 // Not real spending categories, so they never make a useful insight.
 const VAGUE = new Set(['uncategorized', 'non-grocery'])
 
+// A one-line aside shown only when the user picks the playful tone (see delight.js). Kind, never mocking.
+function withQuip(row) {
+  const tone = row.chip.tone
+  let quip = ''
+  if (row.id.startsWith('usual-cat-')) quip = 'That category is having a moment.'
+  else if (row.id.startsWith('usual-store-')) quip = 'Loyalty is lovely. So is a budget.'
+  else if (row.id.startsWith('rise-')) quip = 'Your wallet noticed before you did.'
+  else if (row.id.startsWith('fall-')) quip = 'Look at you go.'
+  else if (row.id === 'top-store') quip = 'A regular, clearly.'
+  else if (row.id === 'top-cat') quip = 'No notes.'
+  else if (row.id === 'trip') quip = tone === 'up' ? 'A big shop, then.' : tone === 'down' ? 'Light and efficient.' : 'Right on schedule.'
+  else if (row.id === 'price') quip = tone === 'up' ? 'Your wallet noticed before you did.' : 'Something finally went your way.'
+  else if (row.id === 'elsewhere') quip = 'The other store has been waiting for you.'
+  else if (row.id === 'month') quip = 'Keep going.'
+  else if (row.id === 'first') quip = 'The first of many.'
+  return { ...row, quip }
+}
+
 const pct = (now, before) => Math.round(Math.abs(now - before) / before * 100)
 
 /**
@@ -130,7 +148,7 @@ export function buildInsights(receipts, rules, now = new Date()) {
     detail: `${money(topCat.cents)} in the last 30 days.`,
     chip: { label: `${share(topCat.cents)}% of spending`, tone: 'flat' },
   })
-  return rows.slice(0, 5)
+  return rows.slice(0, 5).map(withQuip)
 }
 
 /** Per-store totals for a set of receipts: trips, spend, average per trip and share of the total. */
@@ -213,7 +231,7 @@ export function receiptImpact(draft, receipts) {
       text: 'Your first receipt is in',
       detail: 'Save a few more and CartTrail starts spotting price changes and where you spend more than usual.',
       chip: { label: 'Good start', tone: 'flat' },
-    }]
+    }].map(withQuip)
   }
 
   const sameStore = history.filter((receipt) => normalizeLabel(receipt.store) === storeKey)
@@ -315,7 +333,7 @@ export function receiptImpact(draft, receipts) {
       chip: { label: `${monthTrips.length + 1 === 1 ? '1 trip' : monthTrips.length + 1 + ' trips'}`, tone: 'flat' },
     })
   }
-  return rows.slice(0, 3)
+  return rows.slice(0, 3).map(withQuip)
 }
 
 /**

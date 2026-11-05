@@ -7,7 +7,8 @@ import Overview from './Overview'
 import SignIn from './SignIn'
 import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
 import { dollars, formatDate, formatShortDate, receiptLines, receiptTotal } from './format'
-import { Avatar, Icon, Logo, ReceiptPaper } from './ui'
+import { Avatar, Icon, LoadingReceipt, Logo, ReceiptPaper } from './ui'
+import { greeting, primeAudio, printFeedback, receiptFooter, usePrefs } from './delight'
 import { receiptImpact } from './insights'
 import { makeSampleReceipts } from './sampleData'
 import { ACCEPT, MAX_BYTES, isReceiptFile, takeSharedFiles } from './shared'
@@ -45,8 +46,8 @@ export default function App() {
 
   if (!ready) {
     return (
-      <main className="page" role="status" aria-label="Opening CartTrail">
-        <div className="skeleton" style={{ height: 40, maxWidth: 240 }} />
+      <main className="container page">
+        <LoadingReceipt label="Opening CartTrail…" />
       </main>
     )
   }
@@ -85,6 +86,8 @@ function Tracker({ user, recovery }) {
   const [queue, setQueue] = useState([])
   const [skippedNote, setSkippedNote] = useState('')
   const [impact, setImpact] = useState([])
+  const [savedTrip, setSavedTrip] = useState(null)
+  const { tone } = usePrefs()
   const [budgetReady, setBudgetReady] = useState(false)
   const [profile, setProfile] = useState({ display_name: '', avatar_path: null })
   const [profileReady, setProfileReady] = useState(false)
@@ -265,6 +268,7 @@ function Tracker({ user, recovery }) {
 
   async function scanFile(file) {
     setImpact([])
+    setSavedTrip(null)
     setBusy(true)
     setSaved(false)
     setBranchSkipped(false)
@@ -389,6 +393,7 @@ function Tracker({ user, recovery }) {
 
   async function saveReceipt(event) {
     event.preventDefault()
+    primeAudio()
 
     const rows = enteredItems.map((item) => ({
       item_name: item.name.trim(),
@@ -443,6 +448,17 @@ function Tracker({ user, recovery }) {
       if (error) throw error
 
       setImpact(receiptId ? [] : receiptImpact({ store: store.trim(), date, items: rows }, receipts))
+      setSavedTrip(receiptId ? null : {
+        store: store.trim(),
+        date: formatDate(date),
+        lines: receiptLines(rows),
+        subtotal: dollars.format(enteredCents / 100),
+        items: rows.length,
+        count: receipts.length + 1,
+        // The stamp only appears when the items really matched the printed subtotal.
+        matched: subtotalCents !== null && missingPrices === 0 && enteredCents === subtotalCents,
+      })
+      printFeedback()
       setSaved(true)
       setMessage('')
       setItems([blankItem()])
@@ -597,6 +613,7 @@ function Tracker({ user, recovery }) {
     setQueue([])
     setSkippedNote('')
     setImpact([])
+    setSavedTrip(null)
     setItems([blankItem()])
     setStore('')
     setDate(todayForDateInput())
@@ -666,6 +683,7 @@ function Tracker({ user, recovery }) {
         {view === 'overview' && (
           <Overview receipts={shown} rules={categoryRules} loaded={loaded} error={historyError}
             budget={sampleMode || !budgetReady ? null : { cents: budgetCents, save: saveBudget }}
+            greeting={greeting(profile.display_name)} shareable={!sampleMode} receiptCount={receipts.length}
             onScan={startScan} onOpenReceipt={openReceipt} onOpenView={openView} />
         )}
 
@@ -701,9 +719,9 @@ function Tracker({ user, recovery }) {
             </div>
 
             {historyError && <p className="note note-warn" role="alert">{historyError}</p>}
-            {!historyError && !loaded && <div className="skeleton" style={{ height: 220 }} role="status" aria-label="Loading your receipts" />}
+            {!historyError && !loaded && <LoadingReceipt label="Printing your receipts…" />}
             {!historyError && loaded && visibleReceipts.length === 0 && query && (
-              <p className="muted">No receipts match that search. Try a store name, an item, or a date like 2026-11.</p>
+              <p className="receipt-tail">NO MATCHES. TRY A STORE, AN ITEM OR A DATE LIKE 2026-11.</p>
             )}
             {visibleReceipts.length > 0 && (
               <div className="table-panel">
@@ -726,6 +744,9 @@ function Tracker({ user, recovery }) {
                   </tbody>
                 </table>
               </div>
+            )}
+            {!sampleMode && visibleReceipts.length > 0 && (
+              <p className="receipt-tail">{receipts.length} {receipts.length === 1 ? 'RECEIPT' : 'RECEIPTS'} ON FILE. THANK YOU.</p>
             )}
 
             {selectedReceipt && (
@@ -1061,9 +1082,18 @@ function Tracker({ user, recovery }) {
                     {saved ? (
                       <div className="save-done" role="status">
                         <div className="save-done-row">
-                          <span className="status-pill"><Icon name="check" size={20} strokeWidth={2.4} /> {receiptId ? 'Items saved' : 'Receipt saved'}</span>
+                          {savedTrip
+                            ? <span className="visually-hidden">Receipt saved.{savedTrip.matched ? ' Checked: the items matched the printed subtotal.' : ''}</span>
+                            : <span className="status-pill"><Icon name="check" size={20} strokeWidth={2.4} /> {receiptId ? 'Items saved' : 'Receipt saved'}</span>}
                           <button className="link-button" type="button" onClick={() => openView('overview')}>Back to overview</button>
                         </div>
+                        {savedTrip && (
+                          <ReceiptPaper className="saved-receipt" store={savedTrip.store} date={savedTrip.date} lines={savedTrip.lines}
+                            subtotal={savedTrip.subtotal} stamp={savedTrip.matched ? 'CHECKED' : undefined}>
+                            <div className="receipt-foot receipt-foot-first">ITEMS PURCHASED: {savedTrip.items}</div>
+                            <div className="receipt-foot"><strong>{receiptFooter(savedTrip.count)}</strong></div>
+                          </ReceiptPaper>
+                        )}
                         {impact.length > 0 && (
                           <section aria-labelledby="impact-title">
                             <h2 className="h-small spaced-bottom" id="impact-title">What this receipt changed</h2>
@@ -1072,7 +1102,7 @@ function Tracker({ user, recovery }) {
                                 <li key={row.id}>
                                   <div>
                                     <div className="strong">{row.text}</div>
-                                    <div className="muted small">{row.detail}</div>
+                                    <div className="muted small">{row.detail}{tone === 'playful' && row.quip && <span className="quip"> {row.quip}</span>}</div>
                                   </div>
                                   <span className={'chip chip-' + row.chip.tone}>{row.chip.label}</span>
                                 </li>
