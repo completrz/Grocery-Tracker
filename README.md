@@ -19,7 +19,7 @@
 - **Set a monthly budget.** See how you're tracking this month, how many days are left, and a warning if you're heading over.
 - **Compare your stores.** See trips, average spend per trip and share of spending for each store, and which store charges more for the same item.
 - **Know where you shop.** Pin a receipt to a store branch and see all your stores on a map, sized by what you spend there. CartTrail suggests the branch from the address on the receipt.
-- **Take it with you.** Add CartTrail to your home screen for a one-tap "Scan a receipt" shortcut, and export everything to CSV any time.
+- **Take it with you.** Install CartTrail on your home screen for a one-tap "Scan a receipt" shortcut, turn on notifications (a weekly summary, budget alerts and a nudge when you've gone quiet, each optional), and export everything to CSV any time.
 - **Look around before you start.** A new account with no receipts sees clearly labelled sample data, so you can see what the app looks like with history. It disappears as soon as you save your first receipt.
 
 CartTrail works on a phone as well as a desktop.
@@ -62,6 +62,10 @@ Create `.env.local` in the project root with your Supabase project URL and publi
 ```dotenv
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+# Optional: enables the notifications panel (see Push notifications below)
+VITE_VAPID_PUBLIC_KEY=your-vapid-public-key
+# Optional: the notifier function's name, if it isn't `notify`
+VITE_NOTIFY_FUNCTION=notify
 ```
 
 | Script | What it does |
@@ -87,6 +91,7 @@ Apply these in order. The app detects missing migrations and degrades gracefully
 | [`20261105010000_receipt_locations.sql`](supabase/migrations/20261105010000_receipt_locations.sql) | Coordinates on receipts, which enable the spending map. |
 | [`20261105020000_saved_store_branches.sql`](supabase/migrations/20261105020000_saved_store_branches.sql) | Saved store branches and the `save_grocery_receipt_at_branch` function. Apply after the two above, and redeploy `hyper-handler`. |
 | [`20261105030000_monthly_budget.sql`](supabase/migrations/20261105030000_monthly_budget.sql) | The `grocery_budgets` table (one monthly budget per user, with row-level security). Until it is applied, the budget panel is simply hidden. |
+| [`20261105040000_push_notifications.sql`](supabase/migrations/20261105040000_push_notifications.sql) | `push_subscriptions` (one row per device, endpoints limited to known push services), `notification_settings` (the user's choices and time zone) and `notification_log` (what was already sent; server only). Until it is applied, the notifications panel is hidden. |
 
 ## Reading the printed subtotal
 
@@ -120,10 +125,47 @@ The overview's **What changed** list is computed in [`src/insights.js`](src/insi
 - **Savings finder** (`savingsEstimate`) uses the last 90 days of receipts and the same like-for-like name matching as the store comparison. It only appears when the estimated saving is $3 a month or more.
 - **Budget.** A single monthly total per user, stored in `grocery_budgets`. The panel shows spend this calendar month, what is left, and a projection (from day 7) of where the month will end.
 
-## Installing and exporting
+## Installing the app
 
-- **Home screen.** `public/manifest.json` and a small service worker make the app installable. The service worker caches nothing, so users never see a stale version. The installed app has a "Scan a receipt" shortcut that opens `/?scan=1` straight to the capture screen. Icons are in `public/`.
-- **CSV export.** The Receipts page exports every item (date, store, item, quantity, line total, category) from the receipts already loaded in the browser. Text cells that start with a formula character are prefixed so spreadsheets don't run them.
+`public/manifest.json`, the icons and a small service worker make CartTrail installable. The overview's "Get the app and notifications" section shows an **Install CartTrail** button where the browser allows it (Chrome and Edge), and the steps for iPhone (Share, then Add to Home Screen) and other browsers. The installed app has a "Scan a receipt" shortcut that opens `/?scan=1` straight to the capture screen. The service worker caches nothing, so users never see a stale version.
+
+## Push notifications
+
+Users turn notifications on from the same section. They can choose three kinds and turn each off:
+
+- **Weekly summary:** Sunday at 10am local time, what was spent in the last 7 days against the 7 before.
+- **Budget alerts:** once at 80% and once at 100% of the monthly budget, each at most once a month.
+- **Reminders:** when it has been longer than the user's usual rhythm (one and a half times their typical gap between receipts, at least 7 days, or 10 days with little history) since the last receipt, at most once a week, and never after 45 days of silence.
+
+Everything is sent at 10am in the user's own time zone (saved when they turn notifications on), at most two messages per run, and nothing is sent twice (`notification_log`). Tapping a notification only ever opens a page on this site.
+
+### Setup
+
+1. Generate a VAPID key pair: `npx web-push generate-vapid-keys`. Keep the private key secret.
+2. Give the **public** key to the frontend as `VITE_VAPID_PUBLIC_KEY`, in `.env.local` and as a build variable in Cloudflare. Without it the notifications panel stays hidden.
+3. In Supabase, add Edge Function secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (for example `mailto:you@example.com`) and `CRON_SECRET` (a long random string).
+4. Apply the push notifications migration.
+5. Deploy [`notify`](supabase/functions/notify/index.ts) (a single file, so it can be pasted into the dashboard editor). The editor names new functions at random, so note the name it gives; if it isn't `notify`, set the build variable `VITE_NOTIFY_FUNCTION` to that name and use it in the cron URL below. Then open the function's settings and switch **Verify JWT** off. The function checks for itself: the hourly job must send `CRON_SECRET`, and the test button needs a valid signed-in user. (Projects on Supabase's newer publishable keys can't pass the gateway's JWT check with those keys, which is why the check is off.)
+6. Enable the `pg_cron` and `pg_net` extensions (Database, Extensions) and schedule the job to run every hour, filling in your project reference and `CRON_SECRET`:
+
+```sql
+select cron.schedule('carttrail-notify', '0 * * * *', $$
+  select net.http_post(
+    url := 'https://YOUR-PROJECT-REF.supabase.co/functions/v1/notify',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', 'YOUR-CRON-SECRET'
+    ),
+    body := '{"action":"run"}'::jsonb
+  );
+$$);
+```
+
+The job runs hourly because each user is only handled at their own 10am. `notify` also accepts `{"action":"test"}` from a signed-in user, which powers the "Send a test notification" button. On iPhone, notifications only work once CartTrail has been added to the home screen. A subscription the push service reports as gone (HTTP 404 or 410) is deleted automatically. The function refuses to contact any address that is not a known push service (Google, Mozilla, Apple or Windows).
+
+## Exporting
+
+The Receipts page exports every item (date, store, item, quantity, line total, category) to CSV from the receipts already loaded in the browser. Text cells that start with a formula character are prefixed so spreadsheets don't run them.
 
 ## Suggested receipt branches
 
