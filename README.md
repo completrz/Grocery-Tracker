@@ -12,10 +12,10 @@ The animation walks through the workflow with sample data: a scan misreads one p
 
 ## Videos
 
-- [Full walkthrough with voiceover](docs/carttrail-promo.mp4) (51 seconds, 16:9)
+- [Full walkthrough with voiceover](docs/carttrail-promo.mp4) (49 seconds, 16:9): quick upload, then trends, price watch, categories and the store map
 - [15-second social cut](docs/carttrail-social-15s.mp4) (vertical 9:16, with voiceover and music)
 
-Both were recorded from the app with sample data and a mocked backend.
+Both were recorded from the app with sample data and a mocked backend. The map's street background in the videos is a stand-in, because map tiles couldn't be loaded when recording; the pins, labels and store list are the app's own.
 
 ## How it works
 
