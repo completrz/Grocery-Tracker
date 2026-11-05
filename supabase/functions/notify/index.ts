@@ -181,12 +181,23 @@ Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders })
   if (request.method !== 'POST') return json({ error: 'Use POST.' }, 405)
 
-  const publicKey = Deno.env.get('VAPID_PUBLIC_KEY')
-  const privateKey = Deno.env.get('VAPID_PRIVATE_KEY')
-  if (!publicKey || !privateKey) return json({ error: 'Push notifications are not configured on the server.' }, 503)
-  webpush.setVapidDetails(Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@example.com', publicKey, privateKey)
+  // Setup problems (a missing secret, a mistyped key) are logged by name and answered with a clear error,
+  // so they never surface as a bare "Internal Server Error".
+  const missing = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'].filter((name) => !Deno.env.get(name))
+  if (missing.length > 0) {
+    console.error('notify: missing secrets:', missing.join(', '))
+    return json({ error: 'Push notifications are not configured on the server.', missing }, 503)
+  }
 
-  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+  let admin: ReturnType<typeof createClient>
+  try {
+    webpush.setVapidDetails(Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@example.com', Deno.env.get('VAPID_PUBLIC_KEY')!, Deno.env.get('VAPID_PRIVATE_KEY')!)
+    admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+  } catch (error) {
+    // Typical causes: the public and private keys swapped, stray spaces or quotes, or a VAPID_SUBJECT that is not mailto: or https:.
+    console.error('notify: setup failed:', error instanceof Error ? error.message : error)
+    return json({ error: 'Push notifications are not set up correctly. Check the VAPID secrets; the function logs say which one.' }, 500)
+  }
 
   try {
     const body = await request.json().catch(() => ({}))
@@ -249,7 +260,8 @@ Deno.serve(async (request) => {
     }
 
     return json({ error: 'Unknown action.' }, 400)
-  } catch {
+  } catch (error) {
+    console.error('notify: job failed:', error instanceof Error ? error.message : error)
     return json({ error: 'The notification job could not be completed.' }, 500)
   }
 })
