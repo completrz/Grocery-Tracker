@@ -143,8 +143,8 @@ Everything is sent at 10am in the user's own time zone (saved when they turn not
 2. Give the **public** key to the frontend as `VITE_VAPID_PUBLIC_KEY`, in `.env.local` and as a build variable in Cloudflare. Without it the notifications panel stays hidden.
 3. In Supabase, add Edge Function secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (for example `mailto:you@example.com`) and `CRON_SECRET` (a long random string).
 4. Apply the push notifications migration.
-5. Deploy [`notify`](supabase/functions/notify/index.ts) (a single file, so it can be pasted into the dashboard editor).
-6. Enable the `pg_cron` and `pg_net` extensions (Database, Extensions) and schedule the job to run every hour, filling in your project reference, anon key and `CRON_SECRET`:
+5. Deploy [`notify`](supabase/functions/notify/index.ts) (a single file, so it can be pasted into the dashboard editor), then open the function's settings and switch **Verify JWT** off. The function checks for itself: the hourly job must send `CRON_SECRET`, and the test button needs a valid signed-in user. (Projects on Supabase's newer publishable keys can't pass the gateway's JWT check with those keys, which is why the check is off.)
+6. Enable the `pg_cron` and `pg_net` extensions (Database, Extensions) and schedule the job to run every hour, filling in your project reference and `CRON_SECRET`:
 
 ```sql
 select cron.schedule('carttrail-notify', '0 * * * *', $$
@@ -152,7 +152,6 @@ select cron.schedule('carttrail-notify', '0 * * * *', $$
     url := 'https://YOUR-PROJECT-REF.supabase.co/functions/v1/notify',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer YOUR-ANON-KEY',
       'x-cron-secret', 'YOUR-CRON-SECRET'
     ),
     body := '{"action":"run"}'::jsonb

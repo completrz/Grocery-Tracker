@@ -6,6 +6,8 @@ import webpush from 'npm:web-push@3.6.7'
 //   { "action": "test" }  a signed-in user sends a test notification to their own devices.
 //   { "action": "run" }   the hourly scheduled job; requires the `x-cron-secret` header.
 // Keep this a single file: the Supabase dashboard editor does not reliably keep extra files.
+// Deploy with "Verify JWT" off: this function authenticates its callers itself (the cron secret for `run`,
+// the signed-in user's token for `test`), and the gateway's JWT check does not accept publishable keys.
 
 export type Settings = { weekly_summary: boolean; budget_alerts: boolean; reminders: boolean; timezone: string }
 export type DayReceipt = { purchased_on: string; cents: number }
