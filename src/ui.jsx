@@ -36,10 +36,10 @@ const TORN_EDGE = 'M0 0H300V0L290 10 280 0 270 10 260 0 250 10 240 0 230 10 220 
 
 // White paper strip with a torn bottom edge and a highlighter swipe behind
 // the SUBTOTAL line. `lines` is [{ name, price }], `children` renders under the subtotal.
-export function ReceiptPaper({ store, address, date, lines, subtotal, total, children, className = '', style }) {
+export function ReceiptPaper({ store, address, date, lines, subtotal, total, children, stamp, className = '', style }) {
   return (
     <div className={'receipt-paper ' + className} style={style}>
-      <div className="receipt-body">
+      <div className={stamp ? 'receipt-body has-stamp' : 'receipt-body'}>
         <div className="receipt-store">{store}</div>
         {address && <div className="receipt-sub">{address}</div>}
         {date && <div className="receipt-sub">{date}</div>}
@@ -53,6 +53,7 @@ export function ReceiptPaper({ store, address, date, lines, subtotal, total, chi
         <div className="receipt-row receipt-subtotal"><span>SUBTOTAL</span><span>{subtotal}</span></div>
         {total && <div className="receipt-row receipt-total"><span>TOTAL</span><span>{total}</span></div>}
         {children}
+        {stamp && <div className="stamp" aria-hidden="true">{stamp}</div>}
       </div>
       <svg className="receipt-edge" viewBox="0 0 300 10" preserveAspectRatio="none" aria-hidden="true">
         <path d={TORN_EDGE} fill="#FFFFFF" />
@@ -65,9 +66,9 @@ export function CategoryBars({ categories }) {
   const max = Math.max(1, ...categories.map((category) => Math.abs(category.cents)))
   return (
     <ul className="bar-list">
-      {categories.map((category) => (
+      {categories.map((category, index) => (
         <li key={category.name}>
-          <div className="bar-label"><span>{category.name}</span><strong>{dollarsFormat.format(category.cents / 100)}</strong></div>
+          <div className="bar-label"><span><span className="aisle">Aisle {index + 1}</span>{category.name}</span><strong>{dollarsFormat.format(category.cents / 100)}</strong></div>
           <div className="bar-track"><div className="bar-fill" style={{ width: Math.max(2, Math.abs(category.cents) / max * 100) + '%' }} /></div>
         </li>
       ))}
@@ -134,4 +135,25 @@ export function Avatar({ name, email, userId, url, size = 36 }) {
   return url
     ? <img className="avatar" src={url} alt="" style={style} />
     : <span className="avatar" aria-hidden="true" style={{ ...style, background: AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length] }}>{initial}</span>
+}
+
+// Shown while data loads: a receipt that prints its lines one by one.
+export function LoadingReceipt({ label = 'Printing your receipts…' }) {
+  return (
+    <div className="printing" role="status" aria-label={label}>
+      <div className="receipt-paper">
+        <div className="receipt-body">
+          {[88, 66, 78, 58, 72].map((width, index) => (
+            <div className="receipt-row printing-row" key={index} style={{ '--i': index }}>
+              <span className="ghost-text" style={{ width: width + '%' }} /><span className="ghost-text" style={{ width: 36 }} />
+            </div>
+          ))}
+          <div className="receipt-rule receipt-rule-last" />
+          <div className="receipt-row receipt-subtotal"><span className="ghost-text" style={{ width: 80 }} /><span className="ghost-text" style={{ width: 44 }} /></div>
+        </div>
+        <svg className="receipt-edge" viewBox="0 0 300 10" preserveAspectRatio="none" aria-hidden="true"><path d={TORN_EDGE} fill="#FFFFFF" /></svg>
+      </div>
+      <p className="muted small">{label}</p>
+    </div>
+  )
 }

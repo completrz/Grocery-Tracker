@@ -253,10 +253,10 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
             </>
           )}
           <ul className="bar-list">
-            {typeChoices.map(([key, item]) => (
+            {typeChoices.map(([key, item], index) => (
               <li key={key}>
                 <button className="bar-button" type="button" aria-pressed={activeType === key} onClick={() => setType(key)}>
-                  <span className="bar-label"><span>{item.name}</span><strong>{money.format(item.cents / 100)}</strong></span>
+                  <span className="bar-label"><span><span className="aisle">Aisle {index + 1}</span>{item.name}</span><strong>{money.format(item.cents / 100)}</strong></span>
                   <span className="bar-track" aria-hidden="true"><span className="bar-fill" style={{ width: Math.max(2, Math.abs(item.cents) / maxCategory * 100) + '%' }} /></span>
                 </button>
               </li>

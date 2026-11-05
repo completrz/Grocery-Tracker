@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { InstallCard, NotificationsCard } from './AppSettings'
+import { printFeedback, setPrefs, usePrefs } from './delight'
 import { supabase } from './supabase'
 import { Avatar } from './ui'
 
@@ -212,6 +213,41 @@ function PreferencesCard({ userId, budget }) {
   )
 }
 
+function TouchesCard() {
+  const { sound, buzz, tone } = usePrefs()
+  const canBuzz = typeof navigator.vibrate === 'function'
+  return (
+    <section className="panel stack" aria-labelledby="touches-title">
+      <h2 className="h-small" id="touches-title">Little touches</h2>
+      <label className="field">Tone of the notes
+        <select value={tone} onChange={(event) => setPrefs({ tone: event.target.value })}>
+          <option value="plain">Straightforward</option>
+          <option value="playful">Playful</option>
+        </select>
+      </label>
+      <p className="small muted">Playful adds a short aside to the notes on your overview, like “Your wallet noticed before you did.”</p>
+      <ul className="pref-list">
+        <li>
+          <label className="pref">
+            <input type="checkbox" checked={sound} onChange={(event) => setPrefs({ sound: event.target.checked })} />
+            <span><strong>Printer sound when I save</strong><span className="muted small block">A short thermal-printer noise. Off by default.</span></span>
+          </label>
+        </li>
+        {canBuzz && (
+          <li>
+            <label className="pref">
+              <input type="checkbox" checked={buzz} onChange={(event) => setPrefs({ buzz: event.target.checked })} />
+              <span><strong>Buzz when I save</strong><span className="muted small block">A short vibration on phones. Off by default.</span></span>
+            </label>
+          </li>
+        )}
+      </ul>
+      <div><button className="btn btn-secondary" type="button" onClick={() => printFeedback({ force: true })}>Preview</button></div>
+      <p className="small muted">These choices are remembered on this device only.</p>
+    </section>
+  )
+}
+
 function DeleteForm({ scope, user, onDeleted }) {
   const [password, setPassword] = useState('')
   const [word, setWord] = useState('')
@@ -295,6 +331,7 @@ export default function Profile({ user, profile, profileReady, avatarUrl, recove
         <AccountCard user={user} profile={profile} profileReady={profileReady} avatarUrl={avatarUrl} recovery={recovery}
           onSaveProfile={onSaveProfile} onUploadAvatar={onUploadAvatar} onRemoveAvatar={onRemoveAvatar} onSignOut={onSignOut} />
         <PreferencesCard userId={user.id} budget={budget} />
+        <TouchesCard />
         <NotificationsCard userId={user.id} />
         <InstallCard />
       </div>
