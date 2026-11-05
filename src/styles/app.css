@@ -371,3 +371,8 @@ tbody tr:last-child td { border-bottom: 0; }
 .ghost-center { display: flex; justify-content: center; margin: 4px 0; }
 .receipt-subtotal .ghost-text { background: rgba(23, 32, 27, .12); }
 .receipt-row { align-items: center; min-height: 22.75px; }
+
+/* Sample-data notice */
+.banner-sample { align-items: center; flex-wrap: wrap; margin-bottom: 32px; background: var(--accent-soft); color: var(--ink); }
+.banner-sample > div { flex: 1 1 260px; }
+.banner-sample .btn { flex: none; }

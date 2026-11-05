@@ -6,7 +6,8 @@ import Overview from './Overview'
 import SignIn from './SignIn'
 import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
 import { dollars, formatDate, formatShortDate, receiptLines, receiptTotal } from './format'
-import { GhostRows, Icon, Logo, ReceiptPaper } from './ui'
+import { Icon, Logo, ReceiptPaper } from './ui'
+import { makeSampleReceipts } from './sampleData'
 import { supabase } from './supabase'
 
 function todayForDateInput() {
@@ -65,6 +66,7 @@ function Tracker({ email }) {
   const [loaded, setLoaded] = useState(false)
   const [saved, setSaved] = useState(false)
   const [selectedId, setSelectedId] = useState('')
+  const [sampleReceipts] = useState(() => makeSampleReceipts())
   const [branchSkipped, setBranchSkipped] = useState(false)
   const [branchSearchOpen, setBranchSearchOpen] = useState(false)
   const [historyError, setHistoryError] = useState('')
@@ -379,8 +381,11 @@ function Tracker({ email }) {
     if (error) setMessage(error.message, 'error')
   }
 
+  // Accounts with nothing saved see clearly labelled sample data. It is display-only and never written anywhere.
+  const sampleMode = loaded && !historyError && receipts.length === 0
+  const shown = sampleMode ? sampleReceipts : receipts
   const query = search.trim().toLowerCase().replace(/\s+/g, ' ')
-  const visibleReceipts = receipts.filter((receipt) =>
+  const visibleReceipts = shown.filter((receipt) =>
     receipt.store.toLowerCase().replace(/\s+/g, ' ').includes(query) ||
     receipt.purchased_on.includes(query) ||
     receipt.receipt_items.some((item) => item.item_name.toLowerCase().replace(/\s+/g, ' ').includes(query)),
@@ -422,7 +427,7 @@ function Tracker({ email }) {
   const branchConfirmed = Boolean(hasBranchDraft && branchDraft.confirmed)
   const branchSuggested = Boolean(hasBranchDraft && !branchDraft.confirmed)
   const scanned = Boolean(previewUrl)
-  const selectedReceipt = receipts.find((receipt) => receipt.id === selectedId)
+  const selectedReceipt = shown.find((receipt) => receipt.id === selectedId)
   const diffCents = subtotalCents === null ? 0 : enteredCents - subtotalCents
   const navItems = [['overview', 'Overview'], ['receipts', 'Receipts'], ['trends', 'Trends']]
 
@@ -452,15 +457,25 @@ function Tracker({ email }) {
           </datalist>
         )}
         {categoryError && <p className="note note-warn" role="status">{categoryError}</p>}
+        {sampleMode && view !== 'capture' && (
+          <div className="banner banner-sample" role="note">
+            <Icon name="alert" size={22} />
+            <div>
+              <div className="banner-title">You’re looking at sample data.</div>
+              <div>Scan your first receipt and this switches to your own spending. Nothing here is saved to your account.</div>
+            </div>
+            <button className="btn btn-primary" type="button" onClick={startScan}>Scan a receipt</button>
+          </div>
+        )}
 
         <div className="view" key={view}>
         {view === 'overview' && (
-          <Overview receipts={receipts} rules={categoryRules} loaded={loaded} error={historyError}
+          <Overview receipts={shown} rules={categoryRules} loaded={loaded} error={historyError}
             onScan={startScan} onOpenReceipt={openReceipt} onOpenView={openView} />
         )}
 
         {view === 'trends' && (
-          <Trends receipts={receipts} rules={categoryRules} locationsReady={locationsReady} onSaveLocation={saveReceiptLocation} onScan={startScan} />
+          <Trends receipts={shown} sample={sampleMode} rules={categoryRules} locationsReady={locationsReady || sampleMode} onSaveLocation={saveReceiptLocation} onScan={startScan} />
         )}
 
         {view === 'receipts' && (
@@ -481,21 +496,6 @@ function Tracker({ email }) {
             {!historyError && loaded && visibleReceipts.length === 0 && query && (
               <p className="muted">No receipts match that search. Try a store name, an item, or a date like 2026-11.</p>
             )}
-            {!historyError && loaded && receipts.length === 0 && (
-              <div className="stack">
-                <div className="table-panel">
-                  <table>
-                    <thead>
-                      <tr><th scope="col">Store</th><th scope="col">Date</th><th scope="col" className="num">Items</th><th scope="col" className="num">Total</th></tr>
-                    </thead>
-                    <tbody><GhostRows columns={4} rows={5} /></tbody>
-                  </table>
-                </div>
-                <p className="muted">No receipts yet. Scan your first one and it will be listed here.</p>
-                <div><button className="btn btn-primary" type="button" onClick={startScan}><Icon name="scan" /> Scan a receipt</button></div>
-              </div>
-            )}
-
             {visibleReceipts.length > 0 && (
               <div className="table-panel">
                 <table>
@@ -528,8 +528,8 @@ function Tracker({ email }) {
                 </div>
                 <div className="split-main stack">
                   <h2 className="h-section" id="receipt-detail-title">{selectedReceipt.store}, {formatShortDate(selectedReceipt.purchased_on)}</h2>
-                  {categoryReady && <p className="muted small">Change a category and save it to reuse it for this store and item name.</p>}
-                  {categoryReady && categoryStatus && <p className="note" role="status">{categoryStatus}</p>}
+                  {categoryReady && !sampleMode && <p className="muted small">Change a category and save it to reuse it for this store and item name.</p>}
+                  {categoryReady && !sampleMode && categoryStatus && <p className="note" role="status">{categoryStatus}</p>}
                   {selectedReceipt.receipt_items.length === 0 && <p className="muted">No items saved on this receipt yet.</p>}
                   <ul className="item-list">
                     {selectedReceipt.receipt_items.map((item) => {
@@ -540,7 +540,7 @@ function Tracker({ email }) {
                             <span>{item.item_name} × {item.quantity}</span>
                             <strong>{dollars.format(item.line_total_cents / 100)}</strong>
                           </div>
-                          {categoryReady && (
+                          {categoryReady && !sampleMode && (
                             <form key={category} className="inline-form" onSubmit={(event) => saveItemCategory(event, item.id)}>
                               <label className="field field-inline">Category
                                 <input name="category" list="receipt-category-options" defaultValue={category}
@@ -553,12 +553,14 @@ function Tracker({ email }) {
                       )
                     })}
                   </ul>
-                  <div>
-                    <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => {
-                      setReceiptId(selectedReceipt.id)
-                      startScan()
-                    }}>Add items to this receipt</button>
-                  </div>
+                  {!sampleMode && (
+                    <div>
+                      <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => {
+                        setReceiptId(selectedReceipt.id)
+                        startScan()
+                      }}>Add items to this receipt</button>
+                    </div>
+                  )}
                 </div>
               </section>
             )}
