@@ -2,7 +2,32 @@
 // It deliberately caches nothing: every request goes to the network, so users never see a stale app.
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
-self.addEventListener('fetch', () => {})
+
+// Android's Share menu posts shared files to /share-target (see manifest.json). They are kept in the cache
+// until the app opens and reads them (src/shared.js), and the user is sent to the app.
+const SHARE_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
+async function receiveShare(request) {
+  try {
+    const form = await request.formData()
+    const cache = await caches.open('shared-receipts')
+    let saved = 0
+    for (const file of form.getAll('receipts').slice(0, 10)) {
+      if (!(file instanceof File) || !SHARE_TYPES.includes(file.type) || file.size === 0 || file.size > 4000000) continue
+      await cache.put(new URL('/shared/' + Date.now() + '-' + saved, self.location.origin).href, new Response(file, {
+        headers: { 'content-type': file.type, 'x-file-name': encodeURIComponent(file.name || 'receipt'), 'x-saved-at': String(Date.now()) },
+      }))
+      saved++
+    }
+    return Response.redirect(new URL('/?shared=' + saved, self.location.origin).href, 303)
+  } catch {
+    return Response.redirect(new URL('/', self.location.origin).href, 303)
+  }
+}
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event
+  if (request.method === 'POST' && new URL(request.url).pathname === '/share-target') event.respondWith(receiveShare(request))
+})
 
 self.addEventListener('push', (event) => {
   let data = {}

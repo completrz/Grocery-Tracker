@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './styles/app.css'
 import Trends from './Trends'
 import PlaceSearch from './PlaceSearch'
@@ -10,6 +10,7 @@ import { dollars, formatDate, formatShortDate, receiptLines, receiptTotal } from
 import { Icon, Logo, ReceiptPaper } from './ui'
 import { receiptImpact } from './insights'
 import { makeSampleReceipts } from './sampleData'
+import { ACCEPT, MAX_BYTES, isReceiptFile, takeSharedFiles } from './shared'
 import { supabase } from './supabase'
 
 function todayForDateInput() {
@@ -91,6 +92,8 @@ function Tracker({ email, userId }) {
   // The installed app's "Scan a receipt" shortcut opens /?scan=1 straight to the capture screen.
   const [view, setView] = useState(() => new URLSearchParams(window.location.search).has('scan') ? 'capture' : 'overview')
   const [previewUrl, setPreviewUrl] = useState('')
+  const [previewType, setPreviewType] = useState('image')
+  const [dragging, setDragging] = useState(false)
 
   const setMessage = (text, tone = 'info') => setNotice({ text, tone })
 
@@ -199,13 +202,18 @@ function Tracker({ email, userId }) {
   function scanReceipt(event) {
     const files = [...(event.currentTarget.files ?? [])]
     event.currentTarget.value = ''
+    handleFiles(files)
+  }
+
+  // Every way of getting a file in (the pickers, drag and drop, paste, the Share menu) comes through here.
+  function handleFiles(files) {
     if (files.length === 0) return
 
-    const valid = files.filter((file) => ['image/jpeg', 'image/png'].includes(file.type) && file.size > 0 && file.size <= 4_000_000)
+    const valid = files.filter(isReceiptFile)
     if (valid.length === 0) {
-      setMessage(files.length === 1 && files[0].size > 4_000_000
-        ? 'That photo is over 4 MB. Choose a smaller JPEG or PNG.'
-        : 'Choose a JPEG or PNG photo of the receipt, under 4 MB.', 'error')
+      setMessage(files.length === 1 && files[0].size > MAX_BYTES
+        ? 'That file is over 4 MB. Choose a smaller photo or PDF.'
+        : 'Choose a JPEG, PNG or PDF of the receipt, under 4 MB.', 'error')
       return
     }
 
@@ -217,7 +225,7 @@ function Tracker({ email, userId }) {
     const [first, ...rest] = valid
     setQueue(receiptId ? [] : rest)
     setSkippedNote(files.length > valid.length
-      ? `Skipped ${files.length - valid.length === 1 ? '1 file' : (files.length - valid.length) + ' files'} that weren’t a JPEG or PNG under 4 MB.`
+      ? `Skipped ${files.length - valid.length === 1 ? '1 file' : (files.length - valid.length) + ' files'} that weren’t a JPEG, PNG or PDF under 4 MB.`
       : '')
     scanFile(first)
   }
@@ -248,10 +256,11 @@ function Tracker({ email, userId }) {
           ? await error.context.json().catch(() => null)
           : null
         console.error('Receipt scan details:', details?.error ?? error.message)
-        throw new Error('Couldn’t read this image. Try a sharper photo in good light, as a JPEG or PNG.')
+        throw new Error('Couldn’t read this file. Try a sharper photo in good light, or a clearer PDF.')
       }
 
       setPreviewUrl(URL.createObjectURL(file))
+      setPreviewType(file.type === 'application/pdf' ? 'pdf' : 'image')
       setScanText(data.text ?? '')
 
       if (!receiptId && (data.date || data.items.length > 0)) {
@@ -288,6 +297,33 @@ function Tracker({ email, userId }) {
       setBusy(false)
     }
   }
+
+  // The latest handleFiles, for listeners that outlive a single render (paste, the Share menu).
+  const handleFilesRef = useRef(() => {})
+  useEffect(() => { handleFilesRef.current = handleFiles })
+
+  useEffect(() => {
+    // A screenshot pasted with Ctrl+V or Cmd+V on the scan screen is treated like a chosen file.
+    if (view !== 'capture') return
+    const onPaste = (event) => {
+      const files = [...(event.clipboardData?.files ?? [])]
+      if (files.length === 0) return
+      event.preventDefault()
+      handleFilesRef.current(files)
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [view])
+
+  useEffect(() => {
+    // Files shared to the installed app from Photos, Gmail, Files and so on arrive via the service worker.
+    takeSharedFiles().then((files) => {
+      if (new URLSearchParams(window.location.search).has('shared')) window.history.replaceState(null, '', '/')
+      if (files.length === 0) return
+      setView('capture')
+      handleFilesRef.current(files)
+    }).catch(() => {})
+  }, [])
 
   const enteredItems = items.filter((item) => item.name.trim() || item.total.trim())
   const missingPrices = enteredItems.filter((item) => !item.total.trim()).length
@@ -653,7 +689,15 @@ function Tracker({ email, userId }) {
         )}
 
         {view === 'capture' && (
-          <form className="stack-xl" onSubmit={saveReceipt}>
+          <form className={dragging ? 'stack-xl is-dragging' : 'stack-xl'} onSubmit={saveReceipt}
+            onDragOver={(event) => { if (event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); setDragging(true) } }}
+            onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false) }}
+            onDrop={(event) => {
+              if (!event.dataTransfer?.files?.length) return
+              event.preventDefault()
+              setDragging(false)
+              handleFiles([...event.dataTransfer.files])
+            }}>
             <div className="page-title-row">
               <div>
                 <h1 className="h-page">{saved ? 'Saved' : scanned ? 'Check the scan' : 'Scan a receipt'}</h1>
@@ -673,8 +717,16 @@ function Tracker({ email, userId }) {
                 <section className="split-side stack-sm" aria-label="Your receipt photo">
                   {scanned && (
                     <>
-                      <div className="small strong muted">Your photo</div>
-                      <div className="receipt-paper photo-paper"><img src={previewUrl} alt="The receipt you uploaded" /></div>
+                      <div className="small strong muted">{previewType === 'pdf' ? 'Your PDF' : 'Your photo'}</div>
+                      {previewType === 'pdf' ? (
+                        <div className="pdf-card">
+                          <Icon name="scan" size={28} />
+                          <span className="strong">Your PDF receipt</span>
+                          <a href={previewUrl} target="_blank" rel="noreferrer">Open it to compare with the items</a>
+                        </div>
+                      ) : (
+                        <div className="receipt-paper photo-paper"><img src={previewUrl} alt="The receipt you uploaded" /></div>
+                      )}
                     </>
                   )}
                   <label className={scanned ? 'btn btn-secondary btn-block' : 'upload'}>
@@ -682,12 +734,12 @@ function Tracker({ email, userId }) {
                       capture="environment" onChange={scanReceipt} />
                     {scanned
                       ? 'Scan another photo'
-                      : <><Icon name="scan" size={28} /><span className="strong">Choose a receipt photo</span><span className="small muted">JPEG or PNG, up to 4 MB. Photos are sent to Azure to be read.</span></>}
+                      : <><Icon name="scan" size={28} /><span className="strong">Choose a receipt photo</span><span className="small muted">JPEG, PNG or PDF, up to 4 MB. Files are sent to Azure to be read. On a computer you can also drop a file here or paste a screenshot.</span></>}
                   </label>
                   {!scanned && !receiptId && (
                     <label className="link-button">
-                      <input className="visually-hidden" type="file" accept="image/jpeg,image/png" multiple onChange={scanReceipt} />
-                      Or choose several photos from your library
+                      <input className="visually-hidden" type="file" accept={ACCEPT} multiple onChange={scanReceipt} />
+                      Or choose photos or PDFs from your library or files
                     </label>
                   )}
                   {scanText && (
@@ -701,7 +753,7 @@ function Tracker({ email, userId }) {
                 <section className="split-main stack-lg" aria-label="Scanned details">
                   {skippedNote && <p className="note" role="status">{skippedNote}</p>}
                   {queue.length > 0 && !saved && (
-                    <p className="note" role="status">{queue.length === 1 ? '1 more photo is' : queue.length + ' more photos are'} queued. Save this receipt to review the next one.</p>
+                    <p className="note" role="status">{queue.length === 1 ? '1 more file is' : queue.length + ' more files are'} queued. Save this receipt to review the next one.</p>
                   )}
                   {notice.text && (
                     <p className={notice.tone === 'error' ? 'note note-warn' : 'note'} role="status" aria-busy={busy}>{notice.text}</p>
