@@ -88,6 +88,16 @@ Apply these in order. The app detects missing migrations and degrades gracefully
 | [`20261105020000_saved_store_branches.sql`](supabase/migrations/20261105020000_saved_store_branches.sql) | Saved store branches and the `save_grocery_receipt_at_branch` function. Apply after the two above, and redeploy `hyper-handler`. |
 | [`20261105030000_monthly_budget.sql`](supabase/migrations/20261105030000_monthly_budget.sql) | The `grocery_budgets` table (one monthly budget per user, with row-level security). Until it is applied, the budget panel is simply hidden. |
 
+## Reading the printed subtotal
+
+Azure's receipt model often leaves its `Subtotal` field empty for grocery receipts such as H-E-B's, so [`hyper-handler`](supabase/functions/hyper-handler/index.ts) picks the subtotal in this order (see [`subtotal.ts`](supabase/functions/hyper-handler/subtotal.ts)):
+
+1. Azure's own `Subtotal` field.
+2. The amount printed after a `SUBTOTAL` label in the receipt text, on the same line or the next one. Amounts printed before the label are ignored.
+3. Total minus tax, but only when Azure read both.
+
+The response includes `subtotalSource` (`azure`, `text` or `total-minus-tax`) to help debug a receipt. If none of these finds a subtotal, the review screen asks the user to type it in, so the subtotal check still works. Redeploy the function after changing it (`supabase functions deploy hyper-handler`).
+
 ## Trends and the spending map
 
 Trends charts show monthly spending, product prices per recorded unit, and category spending. Period and store filters apply to the charts, rankings and map. **Price watch** compares each product's latest per-unit price with its price three months earlier, and uses the store filter but not the period filter. The figures come from saved receipt lines in USD.
