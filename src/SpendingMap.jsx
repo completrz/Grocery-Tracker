@@ -176,7 +176,7 @@ export default function SpendingMap({ receipts, onSave, onHide, readOnly = false
                 </option>)}
               </select>
             </label>
-            <PlaceSearch key={receipt.id} onSelect={(place) => {
+            <PlaceSearch key={receipt.id} near={groups[0] ? { latitude: groups[0].point[0], longitude: groups[0].point[1] } : null} onSelect={(place) => {
               const lat = place.latitude.toFixed(5)
               const lng = place.longitude.toFixed(5)
               setDraft({ id: receipt.id, lat, lng })

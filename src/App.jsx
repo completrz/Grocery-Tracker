@@ -1049,7 +1049,7 @@ function Tracker({ user, recovery }) {
                       </div>
                       {branchSearchOpen && (
                         <div className="branch-more stack">
-                          <PlaceSearch key={addressKey(store)} onSelect={(place) => {
+                          <PlaceSearch key={addressKey(store)} near={branches[0] ? { latitude: branches[0].latitude, longitude: branches[0].longitude } : null} onSelect={(place) => {
                             const selectedStore = store.trim() || place.name
                             const existing = branches.find((branch) => addressKey(branch.store) === addressKey(selectedStore) &&
                               addressKey(branch.address) === addressKey(place.address))
