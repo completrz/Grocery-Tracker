@@ -483,3 +483,10 @@ tbody tr:last-child td { border-bottom: 0; }
 .share-preview { max-width: 380px; }
 .share-preview img { display: block; width: 100%; height: auto; border-radius: var(--radius-md); }
 .pref-block { display: flex; flex-direction: column; gap: 4px; }
+
+/* Behave like an app on phones: no page zoom from pinching, double-tapping or focusing a field.
+   (iOS zooms the page when a text field under 16px gets focus. The map still pinch-zooms by itself.) */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
+}

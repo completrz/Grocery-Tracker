@@ -280,7 +280,7 @@ Deno.serve(async (request) => {
           ? { latitude: body.near.latitude, longitude: body.near.longitude }
           : null
         try {
-          return json({ places: await searchPlaces(query, key, near) })
+          return json({ places: await searchPlaces(query, key, near), searched: cleanQuery(query) || query })
         } catch {
           return json({ error: 'Store search is temporarily unavailable.' }, 502)
         }

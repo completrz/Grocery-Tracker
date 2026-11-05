@@ -906,7 +906,21 @@ function Tracker({ user, recovery }) {
                     <div className="field-pair">
                       <label className="field">Store
                         <input value={store} placeholder="H-E-B" required
-                          onChange={(event) => { setSaved(false); setStore(event.target.value) }} />
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setSaved(false)
+                            setStore(value)
+                            // The address belongs to the receipt, not to the store name, so typing the name must not
+                            // clear it. A saved branch is tied to the old name and has to be chosen again.
+                            setBranchDraft((draft) => {
+                              if (!draft || draft.storeKey === addressKey(value)) return draft
+                              const tied = Boolean(draft.location?.id)
+                              return {
+                                storeKey: addressKey(value), address: draft.address,
+                                location: tied ? null : draft.location, confirmed: tied ? false : draft.confirmed,
+                              }
+                            })
+                          }} />
                       </label>
                       <label className="field">Date
                         <input type="date" value={date} required

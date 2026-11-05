@@ -28,7 +28,11 @@ export default function PlaceSearch({ onSelect, near = null }) {
       }
       const matches = data.places
       setPlaces(matches)
-      setMessage(matches.length ? 'Choose the branch that matches your receipt.' : 'No stores found. Try the store name with a city or ZIP code, or a street address.')
+      // "Searched for" shows the cleaned-up text that was really looked up, which helps when a store isn't found.
+      const searched = data.searched ? ' Searched for “' + data.searched + '”.' : ''
+      setMessage(matches.length
+        ? 'Choose the branch that matches your receipt.' + searched
+        : 'No stores found.' + searched + ' Try the store name with a city or ZIP code, or a street address.')
     } catch (error) {
       setMessage(error.message)
     } finally {
