@@ -81,6 +81,7 @@ function Tracker({ user, recovery }) {
   const [manualSubtotal, setManualSubtotal] = useState(null)
   // True while the shown subtotal was worked back from the receipt's total rather than read from a subtotal line.
   const [subtotalDerived, setSubtotalDerived] = useState(false)
+  const [totalOnly, setTotalOnly] = useState(false)
   const [notice, setNotice] = useState({ text: '', tone: 'info' })
   const [loaded, setLoaded] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -274,6 +275,7 @@ function Tracker({ user, recovery }) {
     setImpact([])
     setSavedTrip(null)
     setRetryFile(null)
+    setTotalOnly(false)
     setBusy(true)
     setSaved(false)
     setBranchSkipped(false)
@@ -301,10 +303,10 @@ function Tracker({ user, recovery }) {
         setDate(data.date || todayForDateInput())
       }
 
-      if (data.items.length === 0) {
-        setMessage('We couldn’t find any items on this receipt. Add them by hand below.')
-        return
-      }
+      // Some receipts, such as delivery-app emails, print only a total and no item lines. Keep what was read
+      // (store, date, branch, total) and offer the total as a single line instead of discarding the scan.
+      const totalOnly = data.items.length === 0
+      setTotalOnly(totalOnly && data.subtotal != null)
 
       setAzureSubtotal(data.subtotal ?? null)
       const derived = data.subtotal != null && ['total', 'total-minus-tax'].includes(data.subtotalSource)
@@ -314,14 +316,18 @@ function Tracker({ user, recovery }) {
         setStore(data.store ?? '')
       }
 
-      setItems(data.items.map((item) => ({
-        ...blankItem(),
-        name: item.name ?? '',
-        quantity: String(item.quantity ?? 1),
-        total: typeof item.total === 'number' ? item.total.toFixed(2) : '',
-      })))
+      setItems(totalOnly
+        ? [{ ...blankItem(), name: data.subtotal != null ? 'Order total' : '', total: data.subtotal != null ? data.subtotal.toFixed(2) : '' }]
+        : data.items.map((item) => ({
+          ...blankItem(),
+          name: item.name ?? '',
+          quantity: String(item.quantity ?? 1),
+          total: typeof item.total === 'number' ? item.total.toFixed(2) : '',
+        })))
 
-      setMessage('')
+      setMessage(!totalOnly ? '' : data.subtotal != null
+        ? 'This receipt shows only a total, so we added it as one line. Rename it, or split it into items if you like.'
+        : 'We couldn’t find any items on this receipt. Add them by hand below.')
       if (!receiptId && branchesReady) {
         await locateBranch(data.address ?? '', data.store ?? '', data.country ?? '')
       }
@@ -464,7 +470,8 @@ function Tracker({ user, recovery }) {
         items: rows.length,
         count: receipts.length + 1,
         // The stamp only appears when the items really matched the printed subtotal.
-        matched: subtotalCents !== null && missingPrices === 0 && enteredCents === subtotalCents,
+        // A single line copied from the total proves nothing, so a total-only receipt never earns the stamp.
+        matched: !totalOnly && subtotalCents !== null && missingPrices === 0 && enteredCents === subtotalCents,
       })
       printFeedback()
       setSaved(true)
@@ -478,6 +485,7 @@ function Tracker({ user, recovery }) {
       setAzureSubtotal(null)
     setManualSubtotal(null)
       setSubtotalDerived(false)
+      setTotalOnly(false)
       setBranchDraft(null)
       setBranchSkipped(false)
       setBranchMessage('')
@@ -632,6 +640,7 @@ function Tracker({ user, recovery }) {
     setAzureSubtotal(null)
     setManualSubtotal(null)
       setSubtotalDerived(false)
+    setTotalOnly(false)
     setBranchDraft(null)
     setBranchSkipped(false)
     setBranchMessage('')
