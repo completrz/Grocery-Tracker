@@ -186,3 +186,171 @@ export function crossStorePrices(receipts, limit = 6) {
   }
   return rows.sort((a, b) => b.saving - a.saving).slice(0, limit)
 }
+
+const monthName = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' })
+
+function unitPrice(item) {
+  const units = Number(item.quantity)
+  return units > 0 && item.line_total_cents > 0 ? item.line_total_cents / units : 0
+}
+
+/**
+ * What a just-saved receipt changed: how the trip compares with the user's usual trip at that store, the
+ * biggest price move against the last time they bought an item, and an item they paid more for than at
+ * another store. `receipts` is the history from before this receipt. Returns the same row shape as
+ * buildInsights, at most three rows.
+ */
+export function receiptImpact(draft, receipts) {
+  const history = receipts.filter((receipt) => receipt.receipt_items.length > 0)
+  const storeKey = normalizeLabel(draft.store)
+  const total = draft.items.reduce((sum, item) => sum + item.line_total_cents, 0)
+  const money = (cents) => dollars.format(cents / 100)
+  const rows = []
+
+  if (history.length === 0) {
+    return [{
+      id: 'first',
+      text: 'Your first receipt is in',
+      detail: 'Save a few more and CartTrail starts spotting price changes and where you spend more than usual.',
+      chip: { label: 'Good start', tone: 'flat' },
+    }]
+  }
+
+  const sameStore = history.filter((receipt) => normalizeLabel(receipt.store) === storeKey)
+  if (sameStore.length >= 2) {
+    const average = sameStore.reduce((sum, receipt) => sum + receiptCents(receipt), 0) / sameStore.length
+    const diff = total - average
+    const trips = sameStore.length + ' trips'
+    if (average > 0 && Math.abs(diff) >= Math.max(200, average * 0.1)) {
+      rows.push({
+        id: 'trip',
+        text: `This trip was ${money(Math.abs(diff))} ${diff > 0 ? 'more' : 'less'} than your usual at ${draft.store}`,
+        detail: `${money(total)}, against an average of ${money(average)} over ${trips}.`,
+        chip: { label: `${diff > 0 ? 'Up' : 'Down'} ${pct(total, average)}%`, tone: diff > 0 ? 'up' : 'down' },
+      })
+    } else if (average > 0) {
+      rows.push({
+        id: 'trip',
+        text: `A typical trip for ${draft.store}`,
+        detail: `${money(total)}, against an average of ${money(average)} over ${trips}.`,
+        chip: { label: 'In line', tone: 'flat' },
+      })
+    }
+  }
+
+  // Latest earlier purchase of each item, at the same store when there is one.
+  const ordered = [...history].sort((a, b) => b.purchased_on.localeCompare(a.purchased_on))
+  const earlier = (key, sameStoreOnly) => {
+    for (const receipt of ordered) {
+      if (sameStoreOnly && normalizeLabel(receipt.store) !== storeKey) continue
+      const hit = receipt.receipt_items.find((item) => normalizeLabel(item.item_name) === key && unitPrice(item) > 0)
+      if (hit) return { price: unitPrice(hit), store: receipt.store }
+    }
+    return null
+  }
+  const moves = []
+  for (const item of draft.items) {
+    const key = normalizeLabel(item.item_name)
+    const now = unitPrice(item)
+    if (!key || !now) continue
+    const before = earlier(key, true) ?? earlier(key, false)
+    if (!before) continue
+    const change = (now - before.price) / before.price
+    if (Math.abs(change) >= 0.1 && Math.abs(now - before.price) >= 20) moves.push({ item, now, before, change })
+  }
+  moves.sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+  if (moves[0]) {
+    const { item, now, before, change } = moves[0]
+    const where = normalizeLabel(before.store) === storeKey ? '' : ` at ${before.store}`
+    rows.push({
+      id: 'price',
+      text: `${item.item_name} is ${money(now)} a unit, ${change > 0 ? 'up' : 'down'} from ${money(before.price)} last time${where}`,
+      detail: change > 0 ? 'Worth keeping an eye on if it keeps climbing.' : 'Nice, that one got cheaper.',
+      chip: { label: `${change > 0 ? 'Up' : 'Down'} ${Math.round(Math.abs(change) * 100)}%`, tone: change > 0 ? 'up' : 'down' },
+    })
+  }
+
+  // An item that costs noticeably less at another store.
+  const elsewhere = []
+  for (const item of draft.items) {
+    const key = normalizeLabel(item.item_name)
+    const now = unitPrice(item)
+    if (!key || !now) continue
+    const others = new Map()
+    for (const receipt of history) {
+      if (normalizeLabel(receipt.store) === storeKey) continue
+      for (const other of receipt.receipt_items) {
+        if (normalizeLabel(other.item_name) !== key || !unitPrice(other)) continue
+        const row = others.get(receipt.store) ?? { cents: 0, units: 0 }
+        row.cents += other.line_total_cents
+        row.units += Number(other.quantity)
+        others.set(receipt.store, row)
+      }
+    }
+    const best = [...others].map(([store, row]) => ({ store, price: row.cents / row.units })).sort((a, b) => a.price - b.price)[0]
+    if (best && (now - best.price) / best.price >= 0.1 && (now - best.price) / best.price <= 1.5 && now - best.price >= 20) {
+      elsewhere.push({ item, now, best, gap: (now - best.price) / best.price })
+    }
+  }
+  elsewhere.sort((a, b) => (b.now - b.best.price) - (a.now - a.best.price))
+  if (elsewhere[0] && elsewhere[0].item.item_name !== moves[0]?.item.item_name) {
+    const { item, now, best, gap } = elsewhere[0]
+    rows.push({
+      id: 'elsewhere',
+      text: `${item.item_name} cost ${money(now)} a unit here, and ${money(best.price)} at ${best.store}`,
+      detail: 'Per-unit prices from your own receipts. Check package sizes before you switch.',
+      chip: { label: `Paid ${Math.round(gap * 100)}% more`, tone: 'up' },
+    })
+  }
+
+  if (rows.length < 3) {
+    const month = draft.date.slice(0, 7)
+    const monthTrips = history.filter((receipt) => receipt.purchased_on.slice(0, 7) === month)
+    const spent = monthTrips.reduce((sum, receipt) => sum + receiptCents(receipt), 0) + total
+    const label = monthName.format(new Date(month + '-01T00:00:00Z'))
+    rows.push({
+      id: 'month',
+      text: `${label} so far: ${money(spent)}`,
+      detail: `Across ${monthTrips.length + 1 === 1 ? '1 trip' : monthTrips.length + 1 + ' trips'}, including this one.`,
+      chip: { label: `${monthTrips.length + 1 === 1 ? '1 trip' : monthTrips.length + 1 + ' trips'}`, tone: 'flat' },
+    })
+  }
+  return rows.slice(0, 3)
+}
+
+/**
+ * How far the user's history is from unlocking the "above your usual" notes, which need the 30 days before
+ * the last 30 to be covered. Scanning older receipts counts, so it can be sped up.
+ */
+export function unlockStatus(receipts, now = new Date()) {
+  let oldest = -1
+  let trips = 0
+  for (const receipt of receipts) {
+    if (receipt.receipt_items.length === 0) continue
+    const age = daysAgo(receipt.purchased_on, now)
+    if (age < 0) continue
+    trips += 1
+    oldest = Math.max(oldest, age)
+  }
+  const days = oldest + 1
+  const needed = WINDOW * 2
+  return { trips, days, needed, remaining: Math.max(0, needed - days), ready: days >= needed }
+}
+
+/**
+ * What switching items to the cheaper store would have saved over the last 90 days, from the user's own
+ * receipts. Returns null when the amount is too small to be worth showing.
+ */
+export function savingsEstimate(receipts, now = new Date()) {
+  const recent = receipts.filter((receipt) => {
+    const age = daysAgo(receipt.purchased_on, now)
+    return age >= 0 && age < 90
+  })
+  const rows = crossStorePrices(recent, 50)
+  const totalCents = rows.reduce((sum, row) => sum + row.saving, 0)
+  const oldest = recent.reduce((max, receipt) => Math.max(max, daysAgo(receipt.purchased_on, now)), 0)
+  const months = Math.max(1, Math.min(3, (oldest + 1) / WINDOW))
+  const perMonthCents = totalCents / months
+  if (perMonthCents < 300) return null
+  return { rows: rows.slice(0, 3), totalCents, perMonthCents, count: rows.length }
+}
