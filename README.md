@@ -10,6 +10,13 @@ Turn a receipt photo into an editable list of purchases. Review the scanned item
 
 The animation walks through the workflow with sample data: a scan misreads one price, the subtotal check flags a $0.50 difference, and fixing the line clears it before the receipt is saved.
 
+## Videos
+
+- [Full walkthrough with voiceover](docs/carttrail-promo.mp4) (51 seconds, 16:9)
+- [15-second social cut](docs/carttrail-social-15s.mp4) (vertical 9:16, with voiceover and music)
+
+Both were recorded from the app with sample data and a mocked backend.
+
 ## How it works
 
 1. Upload a JPEG or PNG receipt. A Supabase Edge Function verifies your session and sends the image to Azure Document Intelligence.

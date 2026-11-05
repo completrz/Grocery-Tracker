@@ -139,6 +139,8 @@ td { padding: 14px 20px; border-bottom: 1px solid var(--line-soft); }
 tbody tr:last-child td { border-bottom: 0; }
 .num { text-align: right; }
 .row-selected { background: var(--accent-soft); }
+/* Wide enough that the item name stays readable on phones; the panel scrolls sideways. */
+.table-panel-flush > table.items-table { min-width: 640px; }
 .items-table th, .items-table td { padding: 8px; }
 .items-table th { padding: 12px 8px; }
 .items-table th:first-child, .items-table td:first-child { padding-left: 16px; }
