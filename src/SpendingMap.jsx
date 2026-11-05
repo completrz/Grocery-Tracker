@@ -22,7 +22,7 @@ function groupLocations(receipts) {
   return [...groups.values()].sort((a, b) => b.cents - a.cents)
 }
 
-export default function SpendingMap({ receipts, onSave, onHide }) {
+export default function SpendingMap({ receipts, onSave, onHide, readOnly = false }) {
   const node = useRef(null)
   const map = useRef(null)
   const markers = useRef(new Map())
@@ -158,13 +158,13 @@ export default function SpendingMap({ receipts, onSave, onHide }) {
               ))}
             </ul>
           )}
-          {receipt && (
+          {receipt && !readOnly && (
             <button className="link-button" type="button" aria-expanded={pinOpen} onClick={() => setPinOpen(!pinOpen)}>Pin a receipt to a branch</button>
           )}
         </div>
       </div>
 
-      {receipt && pinOpen && (
+      {receipt && pinOpen && !readOnly && (
         <form className="map-form panel-pad stack" onSubmit={submit}>
           <h3 className="h-small">Pin a receipt to a branch</h3>
           <p className="muted small">Choose a receipt, then click its store on the map, search for it, or enter coordinates.</p>

@@ -72,7 +72,7 @@ function shiftMonth(key, delta) {
   return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0')
 }
 
-export default function Trends({ receipts, rules, locationsReady, onSaveLocation, onScan }) {
+export default function Trends({ receipts, rules, locationsReady, onSaveLocation, onScan, sample = false }) {
   const [period, setPeriod] = useState(() => ({ value: '6', ...periodRange('6') }))
   const [store, setStore] = useState('')
   const [productKey, setProduct] = useState('')
@@ -294,7 +294,7 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
         {locationsReady ? (
           mapOpen ? (
             <Suspense fallback={<p className="panel-pad muted" role="status">Loading map…</p>}>
-              <SpendingMap receipts={filtered} onSave={onSaveLocation} onHide={() => setMapOpen(false)} />
+              <SpendingMap receipts={filtered} onSave={onSaveLocation} readOnly={sample} onHide={() => setMapOpen(false)} />
             </Suspense>
           ) : (
             <div className="panel-pad stack-sm">
