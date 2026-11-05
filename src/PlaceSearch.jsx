@@ -23,11 +23,11 @@ export default function PlaceSearch({ onSelect }) {
         const details = error.context instanceof Response
           ? await error.context.json().catch(() => null)
           : null
-        throw new Error(details?.error ?? 'Store search is unavailable. Try again or enter the address.')
+        throw new Error(details?.error ?? 'Store search isn’t available right now. Try again, or enter the address instead.')
       }
       const matches = data.places
       setPlaces(matches)
-      setMessage(matches.length ? 'Choose the branch that matches your receipt.' : 'No stores found. Try adding the city, street, or ZIP code.')
+      setMessage(matches.length ? 'Choose the branch that matches your receipt.' : 'No stores found. Add a city, street, or ZIP code and search again.')
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -36,9 +36,8 @@ export default function PlaceSearch({ onSelect }) {
   }
 
   return (
-    <details className="place-search">
-      <summary>Search by store name</summary>
-      <label htmlFor={inputId}>Store name and area</label>
+    <div className="place-search stack-sm">
+      <label className="field" htmlFor={inputId}>Store name and area</label>
       <div className="place-search-controls">
         <input id={inputId} type="search" value={query} placeholder="e.g. H-E-B Burnet Road Austin"
           maxLength={180} disabled={busy} onChange={(event) => {
@@ -51,10 +50,10 @@ export default function PlaceSearch({ onSelect }) {
               search()
             }
           }} />
-        <button className="button secondary" type="button" disabled={busy || query.trim().length < 3}
+        <button className="btn btn-secondary" type="button" disabled={busy || query.trim().length < 3}
           onClick={search}>Search stores</button>
       </div>
-      <p className="form-status" role="status">{message}</p>
+      <p className="small muted" role="status">{message}</p>
       {places.length > 0 && (
         <ul className="place-results">
           {places.map((place) => (
@@ -70,7 +69,7 @@ export default function PlaceSearch({ onSelect }) {
           ))}
         </ul>
       )}
-      <p className="trend-note">Search powered by <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer">Geoapify</a>.</p>
-    </details>
+      <p className="small muted">Search sends your text to <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer">Geoapify</a>.</p>
+    </div>
   )
 }
