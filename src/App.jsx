@@ -224,6 +224,10 @@ function Tracker({ user, recovery }) {
 
   async function lookUpEnteredAddress() {
     if (!branchDraft?.address.trim()) return
+    if (!store.trim()) {
+      setBranchMessage('Enter the store name above first, then look up the address.')
+      return
+    }
     setBusy(true)
     try {
       await locateBranch(branchDraft.address, store)
@@ -1090,9 +1094,10 @@ function Tracker({ user, recovery }) {
                               }} />
                           </label>
                           <div>
-                            <button className="btn btn-secondary" type="button" disabled={!branchDraft?.address.trim() || !store.trim()}
+                            <button className="btn btn-secondary" type="button" disabled={busy || !branchDraft?.address.trim()}
                               onClick={lookUpEnteredAddress}>Look up this U.S. address</button>
                           </div>
+                          {branchMessage && <p className="small muted" role="status">{branchMessage}</p>}
                           <p className="small muted">Looking up an address sends it to the U.S. Census Geocoder.</p>
                         </div>
                       )}
