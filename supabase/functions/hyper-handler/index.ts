@@ -1,6 +1,110 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
-import { pickSubtotal } from './subtotal.ts'
+
+// ---- Reading the printed subtotal ----
+// Finds a receipt's printed subtotal when Azure's `Subtotal` field is empty, which happens often with
+// grocery receipts such as H-E-B's. Kept free of Deno APIs so it can be tested anywhere.
+
+const AMOUNT = /-?\$?\s?\d{1,3}(?:,\d{3})*\.\d{2}(?!\d)/g
+
+function toNumber(text: string): number | null {
+  const amounts = text.match(AMOUNT)
+  if (!amounts) return null
+  const value = Number(amounts[amounts.length - 1].replace(/[$,\s]/g, ''))
+  return Number.isFinite(value) ? value : null
+}
+
+/** Reads the amount printed after a "SUBTOTAL" label in the receipt text, on the same line or the next one. */
+function subtotalFromText(text: string): number | null {
+  const lines = text.split(/\r?\n/)
+  let found: number | null = null
+  for (let index = 0; index < lines.length; index++) {
+    if (!/\bsub[\s-]*total\b/i.test(lines[index])) continue
+    // Only look after the label so an amount printed before it (an item price) is never picked up.
+    const after = lines[index].replace(/^.*?\bsub[\s-]*total\b/i, '')
+    let value = toNumber(after)
+    if (value === null) {
+      // Some scans put the amount on its own line under the label.
+      const next = (lines[index + 1] ?? '').trim()
+      if (next && next.replace(AMOUNT, '').replace(/[\s$:]/g, '') === '') value = toNumber(next)
+    }
+    if (value !== null && value > 0) found = value
+  }
+  return found
+}
+
+// Receipts like H-E-B's print no SUBTOTAL line, only "Total Sale ***" followed by the amount. Labels with extra
+// words ("TOTAL SAVINGS", "TOTAL ITEMS") are rejected because the text after the label must hold no letters.
+const TOTAL_LABEL = /^\W*(?:grand\s+)?total(?:\s+(?:sale|due))?\b|^\W*(?:amount|balance)\s+due\b/i
+const TAX_LABEL = /^\W*(?:sales\s+)?tax\b/i
+
+function labelledAmount(lines: string[], index: number, rest: string): number | null {
+  let value = toNumber(rest)
+  if (value === null) {
+    const next = (lines[index + 1] ?? '').trim()
+    if (next && next.replace(AMOUNT, '').replace(/[\s$:]/g, '') === '') value = toNumber(next)
+  }
+  return value
+}
+
+/** The amount printed after the receipt's final total label (the last one wins). */
+function totalFromText(text: string): number | null {
+  const lines = text.split(/\r?\n/)
+  let found: number | null = null
+  for (let index = 0; index < lines.length; index++) {
+    const label = TOTAL_LABEL.exec(lines[index])
+    if (!label) continue
+    const rest = lines[index].slice(label[0].length)
+    if (/[a-z]/i.test(rest)) continue
+    const value = labelledAmount(lines, index, rest)
+    if (value !== null && value > 0) found = value
+  }
+  return found
+}
+
+/** The sum of the amounts printed on tax lines, or null when the receipt shows none. */
+function taxFromText(text: string): number | null {
+  const lines = text.split(/\r?\n/)
+  let sum: number | null = null
+  for (let index = 0; index < lines.length; index++) {
+    const label = TAX_LABEL.exec(lines[index])
+    if (!label) continue
+    const value = labelledAmount(lines, index, lines[index].slice(label[0].length))
+    if (value !== null && value >= 0) sum = (sum ?? 0) + value
+  }
+  return sum === null ? null : Math.round(sum * 100) / 100
+}
+
+type Money = { valueCurrency?: { amount?: number }; valueNumber?: number; content?: string } | undefined
+
+const amountOf = (field: Money): number | null =>
+  field?.valueCurrency?.amount ?? field?.valueNumber ?? (field?.content ? toNumber(field.content) : null)
+
+/**
+ * Picks the best available subtotal: Azure's own field, then the printed SUBTOTAL line, then the receipt's total
+ * minus any tax. Returns the amount and where it came from; `total` and `total-minus-tax` are derived, so the
+ * app shows them for the user to confirm.
+ */
+function pickSubtotal(
+  fields: { Subtotal?: Money; Total?: Money; TotalTax?: Money } | undefined,
+  text: string,
+): { amount: number | null; source: 'azure' | 'text' | 'total' | 'total-minus-tax' | null } {
+  const azure = amountOf(fields?.Subtotal)
+  if (azure !== null && azure > 0) return { amount: azure, source: 'azure' }
+
+  const printed = subtotalFromText(text)
+  if (printed !== null) return { amount: printed, source: 'text' }
+
+  // No separate subtotal was printed (as on H-E-B receipts), so work back from the total.
+  const total = amountOf(fields?.Total) ?? totalFromText(text)
+  if (total === null || total <= 0) return { amount: null, source: null }
+  const tax = amountOf(fields?.TotalTax) ?? taxFromText(text)
+  if (tax === null || tax === 0) return { amount: total, source: 'total' }
+  const amount = Math.round((total - tax) * 100) / 100
+  return amount > 0 ? { amount, source: 'total-minus-tax' } : { amount: null, source: null }
+}
+
+// ---- Request handling ----
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: corsHeaders })
