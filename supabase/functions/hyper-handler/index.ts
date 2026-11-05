@@ -118,6 +118,82 @@ function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: corsHeaders })
 }
 
+// ---- Finding a store branch ----
+// Free-text store search through Geoapify. People type "heb burnet" or "trader joes austin", so the text is
+// cleaned up first, results near their existing pins are preferred, and a second endpoint is tried when the first
+// finds little. If no business matches, street-address matches are offered instead.
+
+const BRAND_ALIASES: [RegExp, string][] = [
+  [/\bh\.?\s?e\.?\s?b\b/gi, 'H-E-B'],
+  [/\btrader\s*joe['’]?s?\b/gi, "Trader Joe's"],
+  [/\bwal\s?-?mart\b/gi, 'Walmart'],
+  [/\bwhole\s*foods?\b/gi, 'Whole Foods Market'],
+  [/\bsprouts\b/gi, 'Sprouts Farmers Market'],
+]
+
+function cleanQuery(text: string): string {
+  let value = text.replace(/[^\p{L}\p{N}\s'’&,.#-]/gu, ' ').replace(/\s+/g, ' ').trim()
+  for (const [pattern, name] of BRAND_ALIASES) value = value.replace(pattern, name)
+  return value
+}
+
+type Place = { name: string; address: string; latitude: number; longitude: number }
+
+function readPlaces(results: any[], businessesOnly: boolean): Place[] {
+  const places: Place[] = []
+  for (const place of results) {
+    const business = place.result_type === 'amenity'
+    if (businessesOnly && !business) continue
+    const name = (typeof place.name === 'string' && place.name.trim()) ||
+      (!business && typeof place.address_line1 === 'string' ? place.address_line1.trim() : '')
+    const street = [place.housenumber, place.street].filter(Boolean).join(' ')
+    const address = street && place.address_line2 ? street + ', ' + place.address_line2 : place.formatted
+    const latitude = place.lat
+    const longitude = place.lon
+    if (!name || typeof address !== 'string' || !address.trim() || address.length > 500 ||
+        typeof latitude !== 'number' || typeof longitude !== 'number' ||
+        !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+        Math.abs(latitude) > 85 || Math.abs(longitude) > 180) continue
+    places.push({ name, address, latitude, longitude })
+  }
+  return places
+}
+
+async function searchPlaces(
+  query: string, key: string, near: { latitude: number; longitude: number } | null,
+): Promise<Place[]> {
+  const text = cleanQuery(query) || query
+  const businesses: Place[] = []
+  const addresses: Place[] = []
+  const seen = new Set<string>()
+  let answered = false
+
+  for (const endpoint of ['search', 'autocomplete']) {
+    const params: Record<string, string> = { text, format: 'json', limit: '10', lang: 'en', apiKey: key }
+    if (near) params.bias = 'proximity:' + near.longitude + ',' + near.latitude
+    const url = new URL('https://api.geoapify.com/v1/geocode/' + endpoint)
+    url.search = new URLSearchParams(params).toString()
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(8_000) })
+      if (!response.ok) continue
+      answered = true
+      const results = (await response.json()).results ?? []
+      for (const [list, only] of [[businesses, true], [addresses, false]] as const) {
+        for (const place of readPlaces(results, only)) {
+          const id = place.latitude + ',' + place.longitude + ',' + place.address
+          if (seen.has(id)) continue
+          seen.add(id)
+          list.push(place)
+        }
+      }
+    } catch { /* try the next endpoint */ }
+    if (businesses.length >= 3) break
+  }
+
+  if (!answered) throw new Error('Store search is unavailable.')
+  return (businesses.length ? businesses : addresses).slice(0, 8)
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders })
@@ -149,34 +225,12 @@ Deno.serve(async (request) => {
         const key = Deno.env.get('GEOAPIFY_API_KEY')
         if (!key) return json({ error: 'Store search is not configured. You can still enter the receipt address.' }, 503)
 
-        const url = new URL('https://api.geoapify.com/v1/geocode/search')
-        url.search = new URLSearchParams({
-          text: query, type: 'amenity', format: 'json', limit: '6', apiKey: key,
-        }).toString()
+        const near = body.near && Number.isFinite(body.near.latitude) && Number.isFinite(body.near.longitude) &&
+          Math.abs(body.near.latitude) <= 85 && Math.abs(body.near.longitude) <= 180
+          ? { latitude: body.near.latitude, longitude: body.near.longitude }
+          : null
         try {
-          const response = await fetch(url, { signal: AbortSignal.timeout(8_000) })
-          if (!response.ok) return json({ error: 'Store search is temporarily unavailable.' }, 502)
-          const result = await response.json()
-          const places = []
-          const seen = new Set()
-          for (const place of result.results ?? []) {
-            const name = typeof place.name === 'string' ? place.name.trim() : ''
-            const street = [place.housenumber, place.street].filter(Boolean).join(' ')
-            const address = street && place.address_line2
-              ? street + ', ' + place.address_line2
-              : place.formatted
-            const latitude = place.lat
-            const longitude = place.lon
-            if (place.result_type !== 'amenity' || !name || typeof address !== 'string' || !address.trim() ||
-                address.length > 500 || typeof latitude !== 'number' || typeof longitude !== 'number' ||
-                !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
-                Math.abs(latitude) > 85 || Math.abs(longitude) > 180) continue
-            const id = [latitude, longitude, address].join(',')
-            if (seen.has(id)) continue
-            seen.add(id)
-            places.push({ name, address, latitude, longitude })
-          }
-          return json({ places })
+          return json({ places: await searchPlaces(query, key, near) })
         } catch {
           return json({ error: 'Store search is temporarily unavailable.' }, 502)
         }

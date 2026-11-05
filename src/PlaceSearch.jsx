@@ -1,7 +1,8 @@
 import { useId, useState } from 'react'
 import { supabase } from './supabase'
 
-export default function PlaceSearch({ onSelect }) {
+// `near` ({ latitude, longitude }) is optional: results close to it are ranked first.
+export default function PlaceSearch({ onSelect, near = null }) {
   const inputId = useId()
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState([])
@@ -17,7 +18,7 @@ export default function PlaceSearch({ onSelect }) {
     setMessage('Searching for stores…')
     try {
       const { data, error } = await supabase.functions.invoke('hyper-handler', {
-        body: { action: 'search-places', query: text },
+        body: { action: 'search-places', query: text, ...(near ? { near } : {}) },
       })
       if (error) {
         const details = error.context instanceof Response
@@ -27,7 +28,7 @@ export default function PlaceSearch({ onSelect }) {
       }
       const matches = data.places
       setPlaces(matches)
-      setMessage(matches.length ? 'Choose the branch that matches your receipt.' : 'No stores found. Add a city, street, or ZIP code and search again.')
+      setMessage(matches.length ? 'Choose the branch that matches your receipt.' : 'No stores found. Try the store name with a city or ZIP code, or a street address.')
     } catch (error) {
       setMessage(error.message)
     } finally {
