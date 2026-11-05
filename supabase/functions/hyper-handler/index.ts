@@ -159,6 +159,45 @@ function readPlaces(results: any[], businessesOnly: boolean): Place[] {
   return places
 }
 
+// OpenStreetMap's Nominatim matches business names well ("H-E-B Burnet Road"), so it backs up Geoapify.
+async function nominatimPlaces(
+  text: string, near: { latitude: number; longitude: number } | null,
+): Promise<Place[] | null> {
+  const url = new URL('https://nominatim.openstreetmap.org/search')
+  url.searchParams.set('q', text)
+  url.searchParams.set('format', 'jsonv2')
+  url.searchParams.set('addressdetails', '1')
+  url.searchParams.set('limit', '8')
+  if (near) {
+    url.searchParams.set('viewbox', [near.longitude - 0.6, near.latitude + 0.6, near.longitude + 0.6, near.latitude - 0.6].join(','))
+  }
+  try {
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'CartTrail/1.0 (grocery receipt tracker)', 'Accept-Language': 'en' },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!response.ok) return null
+    const places: Place[] = []
+    for (const row of await response.json()) {
+      const name = typeof row.name === 'string' ? row.name.trim() : ''
+      const a = row.address ?? {}
+      const street = [a.house_number, a.road].filter(Boolean).join(' ')
+      const city = a.city ?? a.town ?? a.village ?? a.suburb ?? ''
+      const region = [a.state, a.postcode].filter(Boolean).join(' ')
+      const address = [street, city, region].filter(Boolean).join(', ') || row.display_name
+      const latitude = Number(row.lat)
+      const longitude = Number(row.lon)
+      if (!name || typeof address !== 'string' || !address.trim() || address.length > 500 ||
+          !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+          Math.abs(latitude) > 85 || Math.abs(longitude) > 180) continue
+      places.push({ name, address, latitude, longitude })
+    }
+    return places
+  } catch {
+    return null
+  }
+}
+
 async function searchPlaces(
   query: string, key: string, near: { latitude: number; longitude: number } | null,
 ): Promise<Place[]> {
@@ -188,6 +227,17 @@ async function searchPlaces(
       }
     } catch { /* try the next endpoint */ }
     if (businesses.length >= 3) break
+  }
+
+  if (businesses.length < 3) {
+    const extra = await nominatimPlaces(text, near)
+    if (extra) answered = true
+    for (const place of extra ?? []) {
+      const id = place.latitude + ',' + place.longitude + ',' + place.address
+      if (seen.has(id)) continue
+      seen.add(id)
+      businesses.push(place)
+    }
   }
 
   if (!answered) throw new Error('Store search is unavailable.')
