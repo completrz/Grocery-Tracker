@@ -445,7 +445,7 @@ function Tracker({ email }) {
           <div className="header-actions">
             <span className="account-email" title={email}>{email}</span>
             <button className="btn btn-tertiary" type="button" disabled={busy} onClick={signOut}>Sign out</button>
-            <button className="btn btn-primary" type="button" onClick={startScan}><Icon name="scan" /> Scan a receipt</button>
+            <button className="btn btn-primary" type="button" aria-label="Scan a receipt" onClick={startScan}><Icon name="scan" /> <span>Scan<span className="hide-sm"> a receipt</span></span></button>
           </div>
         </div>
       </header>
