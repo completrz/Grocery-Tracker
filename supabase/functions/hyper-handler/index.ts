@@ -106,6 +106,14 @@ function pickSubtotal(
 
 // ---- Request handling ----
 
+// Gives up on a step that never answers, so a stalled call returns a clear error instead of leaving the app waiting.
+class DeadlineError extends Error {}
+function withDeadline<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: number
+  const deadline = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new DeadlineError(what)), ms) })
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer))
+}
+
 function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: corsHeaders })
 }
@@ -126,7 +134,7 @@ Deno.serve(async (request) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
     )
-    const { data, error } = await supabase.auth.getUser(token)
+    const { data, error } = await withDeadline(supabase.auth.getUser(token), 10_000, 'the sign-in check')
     if (error || !data.user) {
       return json({ error: 'Your session expired. Sign in again.' }, 401)
     }
@@ -202,7 +210,8 @@ Deno.serve(async (request) => {
       }
     }
 
-    const photo = (await request.formData()).get('photo')
+    console.log('scan: signed in')
+    const photo = (await withDeadline(request.formData(), 20_000, 'reading the upload')).get('photo')
     if (!(photo instanceof File) || !['image/jpeg', 'image/png', 'application/pdf'].includes(photo.type)) {
       return json({ error: 'Choose a JPEG, PNG or PDF receipt.' }, 400)
     }
@@ -216,6 +225,7 @@ Deno.serve(async (request) => {
       return json({ error: 'The Azure scanner secrets are missing.' }, 500)
     }
 
+    console.log('scan: file received,', photo.type, photo.size, 'bytes')
     const headers = { 'Ocp-Apim-Subscription-Key': key }
     const signal = AbortSignal.timeout(45_000)
     const started = await fetch(
@@ -228,6 +238,7 @@ Deno.serve(async (request) => {
       },
     )
 
+    console.log('scan: Azure answered the upload with', started.status)
     const resultUrl = started.headers.get('Operation-Location')
     if (!started.ok || !resultUrl) {
       return json({ error: `Azure could not start the scan (${started.status}).` }, 502)
@@ -244,7 +255,8 @@ Deno.serve(async (request) => {
       if (result.status === 'failed' || result.status === 'canceled') {
         return json({ error: 'Azure could not read this receipt.' }, 422)
       }
-      if (result.status !== 'succeeded') continue
+      if (result.status !== 'succeeded') { console.log('scan: Azure is still', result.status); continue }
+      console.log('scan: Azure finished')
 
       const analysis = result.analyzeResult
       const fields = analysis?.documents?.[0]?.fields
@@ -276,6 +288,10 @@ Deno.serve(async (request) => {
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
       return json({ error: 'The scan timed out. Try again.' }, 504)
+    }
+    if (error instanceof DeadlineError) {
+      console.error('scan: gave up waiting for', error.message)
+      return json({ error: `The scanner took too long (${error.message}). Try again.` }, 504)
     }
     return json({ error: 'The scan could not be completed.' }, 500)
   }

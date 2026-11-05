@@ -4,6 +4,15 @@ export const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
 export const ACCEPT = RECEIPT_TYPES.join(',')
 export const MAX_BYTES = 4_000_000
 
+/** Rejects with a TimeoutError if the promise hasn't settled in `ms`, so the screen never waits forever. */
+export function withTimeout(promise, ms) {
+  let timer
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error('Timed out'), { name: 'TimeoutError' })), ms)
+  })
+  return Promise.race([promise, limit]).finally(() => clearTimeout(timer))
+}
+
 export const isReceiptFile = (file) => RECEIPT_TYPES.includes(file.type) && file.size > 0 && file.size <= MAX_BYTES
 
 const SHARED_CACHE = 'shared-receipts'
