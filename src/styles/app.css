@@ -129,10 +129,10 @@ input, select { font: inherit; color: inherit; }
 .panel-flush { padding: 0; overflow: hidden; }
 .panel-pad { padding: 24px; }
 .panel-head { margin-bottom: 28px; gap: 8px 24px; }
-.table-panel { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.table-panel { position: relative; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); }
 .table-panel-flush { overflow: hidden; }
 .table-panel-flush > table { min-width: 480px; }
-.table-panel-flush { overflow-x: auto; }
+.table-panel-flush { position: relative; overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 480px; }
 th { text-align: left; color: var(--muted); font-size: 13px; font-weight: 600; padding: 14px 20px; border-bottom: 1px solid var(--line); }
 td { padding: 14px 20px; border-bottom: 1px solid var(--line-soft); }
@@ -490,3 +490,6 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 @media (pointer: coarse) {
   input, select, textarea { font-size: 16px !important; }
 }
+
+/* The page itself never scrolls sideways. Wide content (tables) scrolls inside its own panel. */
+html, body { overflow-x: clip; }

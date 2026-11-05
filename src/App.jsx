@@ -224,10 +224,6 @@ function Tracker({ user, recovery }) {
 
   async function lookUpEnteredAddress() {
     if (!branchDraft?.address.trim()) return
-    if (!store.trim()) {
-      setBranchMessage('Enter the store name above first, then look up the address.')
-      return
-    }
     setBusy(true)
     try {
       await locateBranch(branchDraft.address, store)
