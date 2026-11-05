@@ -1,4 +1,4 @@
-# Grocery Tracker
+# CartTrail
 
 Turn a receipt photo into an editable list of purchases. Review the scanned items against the printed subtotal, then save the receipt to your account and track monthly spending.
 

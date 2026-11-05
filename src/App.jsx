@@ -37,7 +37,7 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  if (!ready) return <main className="loading" role="status">Opening Grocery Tracker…</main>
+  if (!ready) return <main className="loading" role="status">Opening CartTrail…</main>
   return session
     ? <Tracker key={session.user.id} email={session.user.email} />
     : <SignIn />
@@ -64,7 +64,7 @@ function Icon({ name }) {
 }
 
 function Brand() {
-  return <span className="brand"><span className="brand-mark"><Icon name="receipt" /></span>Grocery Tracker</span>
+  return <span className="brand"><span className="brand-mark"><Icon name="receipt" /></span>CartTrail</span>
 }
 
 const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })
