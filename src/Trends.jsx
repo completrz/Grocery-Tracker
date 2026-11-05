@@ -159,14 +159,14 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
         {monthRows.length === 0 ? <p className="muted">No spending for these filters. Try a longer period or a different store.</p> : (
           <div className="scroll-x">
             <ul className="month-bars" aria-label="Monthly spending">
-              {monthRows.map(([key, row]) => {
+              {monthRows.map(([key, row], index) => {
                 const current = key === nowKey
                 const label = monthName.format(new Date(key + '-01T00:00:00Z'))
                 return (
                   <li key={key} className="month-col" title={longMonthName.format(new Date(key + '-01T00:00:00Z')) + ' ' + key.slice(0, 4)}>
                     <span className="month-value">{wholeMoney.format(row.cents / 100)}</span>
                     <div className={current ? 'month-bar is-current' : 'month-bar'}
-                      style={{ height: Math.max(4, Math.round(Math.abs(row.cents) / monthMax * 190)) }} />
+                      style={{ height: Math.max(4, Math.round(Math.abs(row.cents) / monthMax * 190)), '--i': index }} />
                     <span className="month-label">{current ? label + ' so far' : label}</span>
                   </li>
                 )
