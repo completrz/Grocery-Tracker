@@ -54,3 +54,21 @@ Apply [saved store branches](supabase/migrations/20261105020000_saved_store_bran
 The Census lookup needs no API key and returns approximate coordinates. Choosing a saved branch or skipping location remains available when an address is missing, outside the U.S., ambiguous, or unavailable. New address lookups send the merchant address to Census. Store branches and links are private to each account.
 
 To enable store-name search, add a Geoapify key as `GEOAPIFY_API_KEY` in Supabase Edge Function secrets and deploy the updated `hyper-handler`. Search accepts a store name plus a city, street, or ZIP code. Select the correct result before saving. Search sends the query text to Geoapify.
+
+## Components and services
+
+| Component | Role in CartTrail |
+| --- | --- |
+| [React](https://react.dev/) | Renders the receipt review form, purchase history, spending dashboard, and trends. |
+| [Vite](https://vite.dev/) and [npm](https://www.npmjs.com/) | Install dependencies, run the local development server, and build the frontend for deployment. |
+| [GitHub](https://github.com/completrz/Grocery-Tracker) | Stores the source code, documentation, and database migrations. The `main` branch is the deployment source. |
+| [Cloudflare Workers](https://workers.cloudflare.com/) | Builds and hosts the frontend from GitHub. |
+| [Supabase](https://supabase.com/) and [PostgreSQL](https://www.postgresql.org/) | Handle sign-in and store receipts, line items, and saved store branches. Row-level security scopes records to their owner. The frontend connects through `supabase-js`, and the `hyper-handler` Edge Function calls the scanning and location services. |
+| [Google Cloud](https://console.cloud.google.com/) | Provides the OAuth client for Sign in with Google through Supabase Auth. |
+| [Azure AI Document Intelligence](https://azure.microsoft.com/en-us/products/ai-services/ai-document-intelligence) | Extracts the merchant, purchase date, line items, prices, and subtotal from receipt images when available. |
+| [U.S. Census Geocoder](https://geocoding.geo.census.gov/) | Looks up approximate coordinates for unfamiliar U.S. merchant addresses. |
+| [Geoapify](https://www.geoapify.com/) | Powers optional store-branch search by store name and location. |
+| [Leaflet](https://leafletjs.com/) and [OpenStreetMap](https://www.openstreetmap.org/) | Render the interactive spending map and supply its basemap, respectively. |
+| [Oxlint](https://oxc.rs/docs/guide/usage/linter.html) | Checks the source code via `npm run lint`. |
+
+See [`package.json`](package.json) for the full dependency list.
