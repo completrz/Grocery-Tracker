@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './styles/app.css'
 import Trends from './Trends'
 import PlaceSearch from './PlaceSearch'
+import AppSettings from './AppSettings'
 import Overview from './Overview'
 import SignIn from './SignIn'
 import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
@@ -545,9 +546,12 @@ function Tracker({ email, userId }) {
 
         <div className="view" key={view}>
         {view === 'overview' && (
-          <Overview receipts={shown} rules={categoryRules} loaded={loaded} error={historyError}
-            budget={sampleMode || !budgetReady ? null : { cents: budgetCents, save: saveBudget }}
-            onScan={startScan} onOpenReceipt={openReceipt} onOpenView={openView} />
+          <>
+            <Overview receipts={shown} rules={categoryRules} loaded={loaded} error={historyError}
+              budget={sampleMode || !budgetReady ? null : { cents: budgetCents, save: saveBudget }}
+              onScan={startScan} onOpenReceipt={openReceipt} onOpenView={openView} />
+            <AppSettings userId={userId} />
+          </>
         )}
 
         {view === 'trends' && (
