@@ -1,29 +1,47 @@
 # CartTrail
 
-Turn a receipt photo into an editable list of purchases. Review the scanned items against the printed subtotal, then save the receipt to your account and track monthly spending.
+**Turn grocery receipts into a spending history.** Take a photo of a receipt, check the items against the printed subtotal, and see where your grocery money goes, month by month and store by store.
 
-[Open the live app](https://grocery-tracker.hinkel-nicholas12.workers.dev/) · Sign-in requires an existing account.
-
-## Demo
+[Open the live app](https://grocery-tracker.hinkel-nicholas12.workers.dev/) · Accounts are invite-only for now, so ask whoever set up your CartTrail to add you.
 
 ![Walkthrough of CartTrail: the overview, scanning a receipt, fixing a misread price so the items match the printed $5.12 subtotal, confirming the store branch, saving, and the updated overview](docs/receipt-demo.gif)
 
-The animation walks through the workflow with sample data: a scan misreads one price, the subtotal check flags a $0.50 difference, and fixing the line clears it before the receipt is saved.
+## What you can do
 
-## Videos
+- **Add a receipt in seconds.** Photograph it and CartTrail reads the store, date, items, quantities and prices for you. You can also type items in by hand.
+- **Catch mistakes before they count.** Your items are added up and compared with the printed subtotal, live, as you edit. If they differ, you're told by how much, and you can fix the line right there.
+- **See your month at a glance.** The overview shows your last 30 days, a spending-by-day chart, your latest receipt and where the money went.
+- **Follow your trends.** Compare months over 3, 6 or 12 months, filter by store, watch **Price watch** for what's gone up or down, and see spending by category.
+- **Know where you shop.** Pin a receipt to a store branch and see all your stores on a map, sized by what you spend there. CartTrail suggests the branch from the address on the receipt.
+- **Look around before you start.** A new account with no receipts sees clearly labelled sample data, so you can see what the app looks like with history. It disappears as soon as you save your first receipt.
 
-- [Full walkthrough with voiceover](docs/carttrail-promo.mp4) (49 seconds, 16:9): quick upload, then trends, price watch, categories and the store map
-- [15-second social cut](docs/carttrail-social-15s.mp4) (vertical 9:16, with voiceover and music)
+CartTrail works on a phone as well as a desktop.
+
+### Watch it
+
+- [Full walkthrough with voiceover](docs/carttrail-promo.mp4) (49 seconds): quick upload, then trends, price watch, categories and the store map
+- [15-second social cut](docs/carttrail-social-15s.mp4) (vertical, with voiceover and music)
 
 Both were recorded from the app with sample data and a mocked backend. The map's street background in the videos is a stand-in, because map tiles couldn't be loaded when recording; the pins, labels and store list are the app's own.
 
+### A few things worth knowing
+
+- **Always check the scan.** Receipts are read by software and can be misread. Compare the items with your photo before saving.
+- **Your data is private.** Receipts, items and saved branches are visible only to your account.
+- **Some things leave the app.** Receipt photos are sent to Azure to be read, merchant addresses to the U.S. Census Geocoder (to suggest a branch), and store-name searches to Geoapify. Opening the map loads OpenStreetMap tiles.
+- **Amounts are in U.S. dollars**, summed from saved line items.
+
+---
+
+# Technical documentation
+
 ## How it works
 
-1. Upload a JPEG or PNG receipt. A Supabase Edge Function verifies your session and sends the image to Azure Document Intelligence.
-2. Review the extracted store, date, quantities, and prices. The form compares the entered line totals with the scanned subtotal when available.
-3. Save the reviewed receipt and its items to PostgreSQL in one transaction. Supabase row-level security limits access to the receipt owner.
+1. Upload a JPEG or PNG receipt (up to 4 MB). The `hyper-handler` Supabase Edge Function verifies your session and sends the image to Azure Document Intelligence.
+2. Review the extracted store, date, quantities and prices. The form compares the entered line totals with the scanned subtotal when available.
+3. Save the reviewed receipt and its items to PostgreSQL in one transaction, through a database function. Supabase row-level security limits access to the receipt owner.
 
-The frontend uses React and Vite and is hosted on Cloudflare Workers. Monthly spending sums saved line amounts and displays them in USD. Review the scan against the original receipt before saving.
+The frontend is React and Vite, hosted on Cloudflare Workers. Monthly spending sums saved line amounts and displays them in USD.
 
 ## Run locally
 
@@ -39,21 +57,66 @@ VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Starts the Vite development server. |
+| `npm run build` | Builds the frontend for deployment. |
+| `npm run preview` | Serves the production build locally. |
+| `npm run lint` | Checks the source with Oxlint. |
+
+## Backend setup
+
 For your own backend, configure Supabase Auth, the `receipts` and `receipt_items` tables with ownership policies, and the `save_grocery_receipt` database function. Create a test user in Supabase and deploy the [`hyper-handler` Edge Function](supabase/functions/hyper-handler/index.ts). Set `AZURE_DOCUMENT_ENDPOINT` and `AZURE_DOCUMENT_KEY` in Supabase Edge Function secrets.
 
-## Trends and store locations
+Sign in with Google needs an OAuth client configured in Google Cloud and enabled as a provider in Supabase Auth. Email and password sign-in works without it.
 
-Trends charts show monthly spending, product prices per recorded unit, and category spending. Period and store filters apply to the charts, rankings, and map. The figures come from saved receipt lines in USD.
+### Database migrations
 
-Apply the [receipt locations migration](supabase/migrations/20261105010000_receipt_locations.sql) in Supabase to enable the spending map. Choose a saved receipt and pin its store branch manually. Branches with the same saved coordinates are grouped. Opening the map loads the OpenStreetMap basemap through Leaflet.
+Apply these in order. The app detects missing migrations and degrades gracefully, for example by disabling the map until the location columns exist.
+
+| Migration | Adds |
+| --- | --- |
+| [`20261105000000_remember_receipt_categories.sql`](supabase/migrations/20261105000000_remember_receipt_categories.sql) | Item categories and remembered category rules per store and item name. |
+| [`20261105010000_receipt_locations.sql`](supabase/migrations/20261105010000_receipt_locations.sql) | Coordinates on receipts, which enable the spending map. |
+| [`20261105020000_saved_store_branches.sql`](supabase/migrations/20261105020000_saved_store_branches.sql) | Saved store branches and the `save_grocery_receipt_at_branch` function. Apply after the two above, and redeploy `hyper-handler`. |
+
+## Trends and the spending map
+
+Trends charts show monthly spending, product prices per recorded unit, and category spending. Period and store filters apply to the charts, rankings and map. **Price watch** compares each product's latest per-unit price with its price three months earlier, and uses the store filter but not the period filter. The figures come from saved receipt lines in USD.
+
+The map needs the receipt locations migration. Choose a saved receipt and pin its store branch manually, or let a suggested branch be saved with the receipt. Branches with the same saved coordinates are grouped. Opening the map loads the OpenStreetMap basemap through Leaflet.
 
 ## Suggested receipt branches
 
-Apply [saved store branches](supabase/migrations/20261105020000_saved_store_branches.sql) after the earlier category and location migrations, and redeploy [hyper-handler](supabase/functions/hyper-handler/index.ts). The scan returns Azure's merchant address. A previously confirmed branch is reused; unfamiliar U.S. addresses are looked up through the U.S. Census Geocoder and require confirmation before being saved as a branch.
+Apply the saved store branches migration and redeploy `hyper-handler`. The scan returns Azure's merchant address. A previously confirmed branch is reused; unfamiliar U.S. addresses are looked up through the U.S. Census Geocoder and require confirmation before being saved as a branch.
 
 The Census lookup needs no API key and returns approximate coordinates. Choosing a saved branch or skipping location remains available when an address is missing, outside the U.S., ambiguous, or unavailable. New address lookups send the merchant address to Census. Store branches and links are private to each account.
 
-To enable store-name search, add a Geoapify key as `GEOAPIFY_API_KEY` in Supabase Edge Function secrets and deploy the updated `hyper-handler`. Search accepts a store name plus a city, street, or ZIP code. Select the correct result before saving. Search sends the query text to Geoapify.
+To enable store-name search, add a Geoapify key as `GEOAPIFY_API_KEY` in Supabase Edge Function secrets and deploy the updated `hyper-handler`. Search accepts a store name plus a city, street or ZIP code. Select the correct result before saving. Search sends the query text to Geoapify.
+
+## Sample data
+
+When an account has no saved receipts, the overview, Receipts and Trends pages render a built-in dataset from [`src/sampleData.js`](src/sampleData.js) with a banner saying so. It is generated relative to today's date, exists only in the browser, and is never written to Supabase. Editing and map pinning are disabled for sample receipts, and the scan form lists only real receipts. The app switches to real data as soon as the first receipt is saved.
+
+## Project structure
+
+| Path | Contents |
+| --- | --- |
+| `src/App.jsx` | Session handling, receipt loading, scan and save flow, and the Receipts and review screens. |
+| `src/Overview.jsx` | Overview: 30-day total, spending by day, latest receipt, recent receipts and categories. |
+| `src/Trends.jsx`, `src/TrendChart.jsx` | Trends page, filters, Price watch and the interactive history charts. |
+| `src/SpendingMap.jsx`, `src/PlaceSearch.jsx` | Leaflet map, branch list, pinning, and store-name search. |
+| `src/SignIn.jsx` | Email and Google sign-in. |
+| `src/ui.jsx` | Shared pieces: icons, logo, the `ReceiptPaper` component and placeholder shapes. |
+| `src/categories.js`, `src/format.js`, `src/sampleData.js` | Category matching, formatting helpers and the sample dataset. |
+| `src/styles/` | Design tokens (`tokens.css`) and application styles (`app.css`). |
+| `supabase/functions/hyper-handler/` | Edge Function for scanning, address lookup and store search. |
+| `supabase/migrations/` | SQL migrations. |
+| `docs/` | README media. |
+
+## Design notes
+
+The interface follows a restrained visual system: a white-paper receipt as the one signature element, tables for tabular data, sentence-case copy, no gradients, glow or scroll-triggered effects. Motion is limited to state changes and first paint, and is disabled under `prefers-reduced-motion`. Focus rings are always visible and text meets a 4.5:1 contrast ratio.
 
 ## Components and services
 
