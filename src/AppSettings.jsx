@@ -12,7 +12,7 @@ const PREFERENCES = [
 
 const timeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
-function InstallCard() {
+export function InstallCard() {
   const { canPrompt, prompt } = useInstallPrompt()
   const installed = isStandalone()
   return (
@@ -32,7 +32,7 @@ function InstallCard() {
   )
 }
 
-function NotificationsCard({ userId }) {
+export function NotificationsCard({ userId }) {
   const [tableReady, setTableReady] = useState(true)
   const [settings, setSettings] = useState({ weekly_summary: true, budget_alerts: true, reminders: true })
   const [subscribed, setSubscribed] = useState(false)
@@ -159,17 +159,5 @@ function NotificationsCard({ userId }) {
       )}
       {message && <p className="note" role="status">{message}</p>}
     </div>
-  )
-}
-
-export default function AppSettings({ userId }) {
-  return (
-    <section className="app-settings stack" aria-labelledby="app-title">
-      <h2 className="h-section" id="app-title">Get the app and notifications</h2>
-      <div className="settings-grid">
-        <InstallCard />
-        <NotificationsCard userId={userId} />
-      </div>
-    </section>
   )
 }

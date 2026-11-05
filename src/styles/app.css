@@ -431,3 +431,25 @@ tbody tr:last-child td { border-bottom: 0; }
 .is-dragging { outline: 3px dashed var(--accent); outline-offset: 12px; border-radius: var(--radius-lg); }
 .pdf-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); color: var(--accent); }
 .pdf-card .strong { color: var(--ink); }
+
+/* Profile, avatar, danger zone, footer */
+.avatar { display: inline-grid; place-items: center; flex: none; border-radius: 50%; object-fit: cover; color: #fff; font-weight: 700; line-height: 1; user-select: none; }
+.avatar-button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 2px solid transparent; border-radius: 50%; background: none; cursor: pointer; }
+.avatar-button:hover { border-color: var(--line); }
+.avatar-button[aria-current='page'] { border-color: var(--accent); }
+.profile-top { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.facts { margin: 0; display: grid; gap: 8px; }
+.facts div { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.facts dt { width: 72px; color: var(--muted); font-size: 14px; font-weight: 600; }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.btn-danger { background: var(--surface); border-color: #8A3A3A; color: #8A3A3A; }
+.btn-danger:hover:not(:disabled) { background: #8A3A3A; color: #fff; }
+.danger { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 0 16px; background: var(--surface); }
+.danger > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #8A3A3A; }
+.danger[open] > summary { margin-bottom: 8px; }
+.danger form { padding-bottom: 16px; }
+.disclosure form { margin-top: 8px; }
+.site-footer { padding-top: 8px; padding-bottom: 40px; }
+.site-footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; border-top: 1px solid var(--line); padding-top: 20px; font-size: 14px; }
+.site-footer a { color: var(--muted); font-weight: 500; }
+.site-footer a:hover { color: var(--ink); }
