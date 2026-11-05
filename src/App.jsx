@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
-import './App.css'
+import './styles/app.css'
 import Trends from './Trends'
 import PlaceSearch from './PlaceSearch'
+import Overview from './Overview'
+import SignIn from './SignIn'
 import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
+import { dollars, formatDate, formatShortDate, receiptLines, receiptTotal } from './format'
+import { Icon, Logo, ReceiptPaper } from './ui'
 import { supabase } from './supabase'
-
-const dollars = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-})
 
 function todayForDateInput() {
   const today = new Date()
@@ -37,152 +36,16 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  if (!ready) return <main className="loading" role="status">Opening CartTrail…</main>
+  if (!ready) {
+    return (
+      <main className="page" role="status" aria-label="Opening CartTrail">
+        <div className="skeleton" style={{ height: 40, maxWidth: 240 }} />
+      </main>
+    )
+  }
   return session
     ? <Tracker key={session.user.id} email={session.user.email} />
     : <SignIn />
-}
-
-function Icon({ name }) {
-  const paths = {
-    overview: 'M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z',
-    trends: 'M3 3v18h18M7 16l4-5 4 2 5-7',
-    receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6',
-    camera: 'M4 7h4l2-3h4l2 3h4a1 1 0 0 1 1 1v11H3V8a1 1 0 0 1 1-1Zm12 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
-    search: 'M15.5 15.5 21 21m-3.5-10.5a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z',
-    plus: 'M12 5v14M5 12h14',
-    close: 'm6 6 12 12M18 6 6 18',
-    chevron: 'm9 5 7 7-7 7',
-  }
-  return (
-    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"
-      fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
-      strokeLinejoin="round">
-      <path d={paths[name]} />
-    </svg>
-  )
-}
-
-function Brand() {
-  return <span className="brand"><span className="brand-mark"><Icon name="receipt" /></span>CartTrail</span>
-}
-
-const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })
-const dateLabel = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' })
-
-function receiptTotal(receipt) {
-  return receipt.receipt_items.reduce((sum, item) => sum + item.line_total_cents, 0)
-}
-
-function SpendingChart({ months }) {
-  const recent = months.slice(0, 6).reverse()
-  const low = Math.min(0, ...recent.map(([, cents]) => cents))
-  const high = Math.max(1, ...recent.map(([, cents]) => cents))
-  const y = (cents) => 14 + (high - cents) / (high - low) * 140
-  const cell = 312 / recent.length
-  const width = Math.min(cell * .52, 46)
-
-  return (
-    <figure className="spending-chart">
-      <svg viewBox="0 0 390 185" aria-hidden="true">
-        {[high, (high + low) / 2, low].map((cents) => (
-          <g key={cents}>
-            <line className="chart-grid" x1="68" x2="380" y1={y(cents)} y2={y(cents)} />
-            <text x="61" y={y(cents) + 4} textAnchor="end">{dollars.format(cents / 100)}</text>
-          </g>
-        ))}
-        {recent.map(([month, cents], index) => {
-          const x = 68 + (index + .5) * cell
-          return (
-            <g key={month}>
-              <rect x={x - width / 2} y={Math.min(y(0), y(cents))} width={width}
-                height={Math.abs(y(0) - y(cents))} rx="3" className="chart-bar" />
-              <text x={x} y="175" textAnchor="middle">{monthLabel.format(new Date(month + '-01'))}</text>
-            </g>
-          )
-        })}
-      </svg>
-      <figcaption>Up to six most recent months with saved items</figcaption>
-      <details className="chart-values">
-        <summary>View monthly totals</summary>
-        <ul className="months">
-          {months.map(([month, cents]) => (
-            <li key={month}>
-              <div><span>{monthLabel.format(new Date(month + '-01'))}</span>
-                <strong>{dollars.format(cents / 100)}</strong></div>
-            </li>
-          ))}
-        </ul>
-      </details>
-    </figure>
-  )
-}
-
-function SignIn() {
-  const [message, setMessage] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  async function signIn(event) {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-
-    setBusy(true)
-    setMessage('')
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: form.get('email').trim(),
-        password: form.get('password'),
-      })
-      if (error) throw error
-    } catch (error) {
-      setMessage(error.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function signInWithGoogle() {
-    setBusy(true)
-    setMessage('')
-
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: new URL('/', window.location.origin).href },
-      })
-      if (error) throw error
-    } catch (error) {
-      setMessage(error.message)
-      setBusy(false)
-    }
-  }
-
-  return (
-    <main className="auth-shell">
-      <div className="auth-intro">
-        <Brand />
-        <div>
-          <h1>Grocery spending, by receipt.</h1>
-          <p>Scan your receipts, check the items, and see your spending over time.</p>
-        </div>
-      </div>
-      <section className="auth-card" aria-labelledby="sign-in-title">
-        <h2 id="sign-in-title">Sign in</h2>
-        <p className="muted">Open your private receipt history.</p>
-        <button className="button secondary google" type="button" disabled={busy} onClick={signInWithGoogle}>
-          <span aria-hidden="true">G</span> Sign in with Google
-        </button>
-        <div className="divider"><span>or use email</span></div>
-        <form onSubmit={signIn}>
-          <label>Email<input name="email" type="email" autoComplete="email" required /></label>
-          <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
-          <button className="button primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-        </form>
-        <p className="form-status" role="status">{message}</p>
-      </section>
-    </main>
-  )
 }
 
 function Tracker({ email }) {
@@ -198,7 +61,12 @@ function Tracker({ email }) {
   const [receiptId, setReceiptId] = useState('')
   const [scanText, setScanText] = useState('')
   const [azureSubtotal, setAzureSubtotal] = useState(null)
-  const [message, setMessage] = useState('')
+  const [notice, setNotice] = useState({ text: '', tone: 'info' })
+  const [loaded, setLoaded] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [selectedId, setSelectedId] = useState('')
+  const [branchSkipped, setBranchSkipped] = useState(false)
+  const [branchSearchOpen, setBranchSearchOpen] = useState(false)
   const [historyError, setHistoryError] = useState('')
   const [categoryError, setCategoryError] = useState('')
   const [categoryStatus, setCategoryStatus] = useState('')
@@ -209,10 +77,8 @@ function Tracker({ email }) {
   const [search, setSearch] = useState('')
   const [view, setView] = useState('overview')
   const [previewUrl, setPreviewUrl] = useState('')
-  const [currentMonth] = useState(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  })
+
+  const setMessage = (text, tone = 'info') => setNotice({ text, tone })
 
   useEffect(() => {
     if (previewUrl) return () => URL.revokeObjectURL(previewUrl)
@@ -236,6 +102,7 @@ function Tracker({ email }) {
       const { data, error } = missingLocationColumns ? await load(fields) : withLocations
 
       if (!active) return
+      setLoaded(true)
       setLocationsReady(!missingLocationColumns && !error)
       setBranchesReady(!branchResult.error)
       setBranches(branchResult.data ?? [])
@@ -257,6 +124,7 @@ function Tracker({ email }) {
   }, [refresh])
 
   function updateItem(id, field, value) {
+    setSaved(false)
     setItems((current) => current.map((item) =>
       item.id === id ? { ...item, [field]: value } : item,
     ))
@@ -317,12 +185,12 @@ function Tracker({ email }) {
     if (!file) return
 
     if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      setMessage('Choose a JPEG or PNG receipt photo.')
+      setMessage('Choose a JPEG or PNG photo of the receipt.', 'error')
       return
     }
 
     if (file.size === 0 || file.size > 4_000_000) {
-      setMessage('Choose a receipt photo under 4 MB.')
+      setMessage('That photo is over 4 MB. Choose a smaller JPEG or PNG.', 'error')
       return
     }
 
@@ -332,7 +200,9 @@ function Tracker({ email }) {
     }
 
     setBusy(true)
-    setMessage('Scanning with Azure…')
+    setSaved(false)
+    setBranchSkipped(false)
+    setMessage('Reading your receipt…')
 
     try {
       const body = new FormData()
@@ -344,7 +214,8 @@ function Tracker({ email }) {
         const details = error.context instanceof Response
           ? await error.context.json().catch(() => null)
           : null
-        throw new Error(details?.error ?? error.message)
+        console.error('Receipt scan details:', details?.error ?? error.message)
+        throw new Error('Couldn’t read this image. Try a sharper photo in good light, as a JPEG or PNG.')
       }
 
       setPreviewUrl(URL.createObjectURL(file))
@@ -355,7 +226,7 @@ function Tracker({ email }) {
       }
 
       if (data.items.length === 0) {
-        setMessage('No items found. Check the scanned text or enter the items manually.')
+        setMessage('We couldn’t find any items on this receipt. Add them by hand below.')
         return
       }
 
@@ -371,12 +242,12 @@ function Tracker({ email }) {
         total: typeof item.total === 'number' ? item.total.toFixed(2) : '',
       })))
 
-      setMessage(`Found ${data.items.length} items. Review them before saving.`)
+      setMessage('')
       if (!receiptId && branchesReady) {
         await locateBranch(data.address ?? '', data.store ?? '', data.country ?? '')
       }
     } catch (error) {
-      setMessage(error.message)
+      setMessage(error.message, 'error')
     } finally {
       setBusy(false)
     }
@@ -443,12 +314,12 @@ function Tracker({ email }) {
     )
 
     if (rows.length === 0 || invalidItem) {
-      setMessage('Enter a name, positive quantity, and valid line total for each item.')
+      setMessage('Every line needs a name, a quantity above zero, and a line total.', 'error')
       return
     }
 
     if (!receiptId && (!store.trim() || !date)) {
-      setMessage('Enter a store and purchase date.')
+      setMessage('Enter the store and the purchase date before saving.', 'error')
       return
     }
 
@@ -474,7 +345,8 @@ function Tracker({ email }) {
 
       if (error) throw error
 
-      setMessage(receiptId ? 'Items saved!' : 'Receipt saved!')
+      setSaved(true)
+      setMessage('')
       setItems([blankItem()])
       setStore('')
       setDate(todayForDateInput())
@@ -483,10 +355,11 @@ function Tracker({ email }) {
       setPreviewUrl('')
       setAzureSubtotal(null)
       setBranchDraft(null)
+      setBranchSkipped(false)
       setBranchMessage('')
       setRefresh((current) => current + 1)
     } catch (error) {
-      setMessage(error.message)
+      setMessage(error.message, 'error')
     } finally {
       setBusy(false)
     }
@@ -503,22 +376,9 @@ function Tracker({ email }) {
 
   async function signOut() {
     const { error } = await supabase.auth.signOut()
-    if (error) setMessage(error.message)
+    if (error) setMessage(error.message, 'error')
   }
 
-  const monthlyTotals = new Map()
-  let recordedReceipts = 0
-  let lifetimeCents = 0
-  for (const receipt of receipts) {
-    if (receipt.receipt_items.length === 0) continue
-    const month = receipt.purchased_on.slice(0, 7)
-    const cents = receiptTotal(receipt)
-    recordedReceipts += 1
-    lifetimeCents += cents
-    monthlyTotals.set(month, (monthlyTotals.get(month) ?? 0) + cents)
-  }
-
-  const months = [...monthlyTotals]
   const query = search.trim().toLowerCase().replace(/\s+/g, ' ')
   const visibleReceipts = receipts.filter((receipt) =>
     receipt.store.toLowerCase().replace(/\s+/g, ' ').includes(query) ||
@@ -532,331 +392,415 @@ function Tracker({ email }) {
     window.scrollTo(0, 0)
   }
 
+  function openReceipt(id) {
+    setSelectedId(id)
+    openView('receipts')
+  }
+
+  function startScan() {
+    setSaved(false)
+    openView('capture')
+  }
+
+  function discardScan() {
+    setItems([blankItem()])
+    setStore('')
+    setDate(todayForDateInput())
+    setReceiptId('')
+    setScanText('')
+    setPreviewUrl('')
+    setAzureSubtotal(null)
+    setBranchDraft(null)
+    setBranchSkipped(false)
+    setBranchMessage('')
+    setMessage('')
+    setSaved(false)
+    openView('overview')
+  }
+
+  const hasBranchDraft = branchDraft?.storeKey === addressKey(store) && branchDraft.location
+  const branchConfirmed = Boolean(hasBranchDraft && branchDraft.confirmed)
+  const branchSuggested = Boolean(hasBranchDraft && !branchDraft.confirmed)
+  const scanned = Boolean(previewUrl)
+  const selectedReceipt = receipts.find((receipt) => receipt.id === selectedId)
+  const diffCents = subtotalCents === null ? 0 : enteredCents - subtotalCents
+  const navItems = [['overview', 'Overview'], ['receipts', 'Receipts'], ['trends', 'Trends']]
+
   return (
-    <div className="app-shell">
-      <header className="app-rail">
-        <button type="button" className="brand-link" onClick={() => openView('overview')}><Brand /></button>
-        <nav aria-label="Dashboard">
-          <span className="nav-label">Workspace</span>
-          {[
-            ['overview', 'Overview', 'overview'],
-            ['trends', 'Trends', 'trends'],
-            ['receipts', 'Receipts', 'receipt'],
-            ['capture', 'Scan receipt', 'camera'],
-          ].map(([key, label, icon]) => (
-            <button key={key} type="button" aria-current={view === key ? 'page' : undefined}
-              onClick={() => openView(key)}><Icon name={icon} />{label}</button>
-          ))}
-        </nav>
-        <div className="account">
-          <span className="avatar" aria-hidden="true">{email?.[0]?.toUpperCase() ?? 'U'}</span>
-          <div className="account-info">
-            <span title={email}>{email}</span>
-            <button className="button quiet" type="button" disabled={busy} onClick={signOut}>Sign out</button>
+    <div className="app">
+      <header className="site-header">
+        <div className="container header-inner">
+          <button type="button" className="logo-button" aria-label="CartTrail overview" onClick={() => openView('overview')}><Logo /></button>
+          <nav aria-label="Main" className="main-nav">
+            {navItems.map(([key, label]) => (
+              <button key={key} type="button" aria-current={view === key ? 'page' : undefined}
+                onClick={() => openView(key)}>{label}</button>
+            ))}
+          </nav>
+          <div className="header-actions">
+            <span className="account-email" title={email}>{email}</span>
+            <button className="btn btn-tertiary" type="button" disabled={busy} onClick={signOut}>Sign out</button>
+            <button className="btn btn-primary" type="button" onClick={startScan}><Icon name="scan" /> Scan a receipt</button>
           </div>
         </div>
       </header>
 
-      <main className="dashboard" id="overview">
-        <div className="page-heading">
-          <div>
-            <h1>{{ overview: 'Spending overview', trends: 'Trends', receipts: 'Receipt history', capture: 'Add a receipt' }[view]}</h1>
-            <p className="muted">{{
-              overview: 'Spending from your saved receipts.',
-              trends: 'Track what you paid for repeat purchases and where your spending goes.',
-              receipts: 'Find past purchases by store, item, or date.',
-              capture: 'Upload a receipt photo or enter your purchases by hand.',
-            }[view]}</p>
-          </div>
-          {view !== 'capture' && (
-            <button className="button primary" type="button" onClick={() => openView('capture')}>
-              <Icon name="plus" /> Add receipt
-            </button>
-          )}
-        </div>
-
-        <section className="metrics" aria-label="Spending summary" hidden={view !== 'overview'}>
-          <div className="metric featured">
-            <span>This month</span>
-            <strong>{dollars.format((monthlyTotals.get(currentMonth) ?? 0) / 100)}</strong>
-            <small>Saved item totals</small>
-          </div>
-          <div className="metric">
-            <span>Receipts saved</span>
-            <strong>{receipts.length}</strong>
-            <small>All time</small>
-          </div>
-          <div className="metric">
-            <span>Average receipt</span>
-            <strong>{recordedReceipts ? dollars.format(lifetimeCents / recordedReceipts / 100) : '—'}</strong>
-            <small>Receipts with items</small>
-          </div>
-          <div className="metric">
-            <span>Latest receipt</span>
-            <strong>{receipts[0]?.store ?? '—'}</strong>
-            <small>{receipts[0] ? dateLabel.format(new Date(receipts[0].purchased_on)) : 'No receipts yet'}</small>
-          </div>
-        </section>
-
+      <main className="container page">
         {categoryReady && (
           <datalist id="receipt-category-options">
             {choices.map((category) => <option key={category} value={category} />)}
           </datalist>
         )}
-        {categoryError && <p className="form-status" role="status">{categoryError}</p>}
-        {view === 'trends' && <Trends receipts={receipts} rules={categoryRules} locationsReady={locationsReady} onSaveLocation={saveReceiptLocation} />}
+        {categoryError && <p className="note note-warn" role="status">{categoryError}</p>}
 
-        <div className="workspace-content" data-view={view} hidden={view === 'trends'}>
-          <section className="panel capture-panel" id="capture" aria-label="Receipt entry" hidden={view !== 'capture'}>
-            <form onSubmit={saveReceipt}>
-              <fieldset className="form-body" disabled={busy}>
-                <label className="upload">
-                  <input className="visually-hidden" type="file" accept="image/jpeg,image/png"
-                    capture="environment" onChange={scanReceipt} />
-                  <span className="upload-icon"><Icon name="camera" /></span>
-                  <span><strong>{previewUrl ? 'Scan another photo' : 'Scan a receipt photo'}</strong>
-                    <small>JPEG or PNG · Up to 4 MB</small></span>
-                </label>
-                <p className="privacy-note">Photos are sent to Azure for processing.</p>
-                <p className="form-status" role="status">{message}</p>
+        {view === 'overview' && (
+          <Overview receipts={receipts} rules={categoryRules} loaded={loaded} error={historyError}
+            onScan={startScan} onOpenReceipt={openReceipt} onOpenView={openView} />
+        )}
 
-                {previewUrl && (
-                  <details className="scan-details">
-                    <summary>View receipt photo</summary>
-                    <img src={previewUrl} alt="Receipt selected for scanning" />
-                  </details>
-                )}
-                {scanText && (
-                  <details className="scan-details">
-                    <summary>View scanned text</summary>
-                    <pre>{scanText}</pre>
-                  </details>
-                )}
+        {view === 'trends' && (
+          <Trends receipts={receipts} rules={categoryRules} locationsReady={locationsReady} onSaveLocation={saveReceiptLocation} />
+        )}
 
-                <label className="receipt-select">Save to
-                  <select value={receiptId} onChange={(event) => setReceiptId(event.target.value)}>
-                    <option value="">New receipt</option>
-                    {receipts.map((receipt) => (
-                      <option key={receipt.id} value={receipt.id}>
-                        {receipt.store} · {receipt.purchased_on}
-                      </option>
+        {view === 'receipts' && (
+          <div className="stack-xl">
+            <div className="page-title-row">
+              <div>
+                <h1 className="h-page">Receipts</h1>
+                <p className="lede">Find past purchases by store, item, or date.</p>
+              </div>
+              <label className="field field-inline">Search receipts
+                <input type="search" placeholder="Store, item, or date" value={search}
+                  onChange={(event) => setSearch(event.target.value)} />
+              </label>
+            </div>
+
+            {historyError && <p className="note note-warn" role="alert">{historyError}</p>}
+            {!historyError && !loaded && <div className="skeleton" style={{ height: 220 }} role="status" aria-label="Loading your receipts" />}
+            {!historyError && loaded && visibleReceipts.length === 0 && (
+              <p className="muted">{query
+                ? 'No receipts match that search. Try a store name, an item, or a date like 2026-11.'
+                : 'No receipts yet. Scan your first one to start tracking.'}</p>
+            )}
+
+            {visibleReceipts.length > 0 && (
+              <div className="table-panel">
+                <table>
+                  <thead>
+                    <tr><th scope="col">Store</th><th scope="col">Date</th><th scope="col" className="num">Items</th><th scope="col" className="num">Total</th></tr>
+                  </thead>
+                  <tbody>
+                    {visibleReceipts.map((receipt) => (
+                      <tr key={receipt.id} className={receipt.id === selectedId ? 'row-selected' : undefined}>
+                        <td className="strong">
+                          <button className="link-button link-ink" type="button" aria-expanded={receipt.id === selectedId}
+                            onClick={() => setSelectedId(receipt.id === selectedId ? '' : receipt.id)}>{receipt.store}</button>
+                        </td>
+                        <td className="muted">{formatDate(receipt.purchased_on)}</td>
+                        <td className="num muted">{receipt.receipt_items.length}</td>
+                        <td className="num strong">{dollars.format(receiptTotal(receipt) / 100)}</td>
+                      </tr>
                     ))}
-                  </select>
-                </label>
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-                {!receiptId && (
-                  <div className="receipt-fields">
-                    <label>Store
-                      <input value={store} placeholder="e.g. H-E-B"
-                        onChange={(event) => setStore(event.target.value)} required />
-                    </label>
-                    <label>Purchase date
-                      <input type="date" value={date}
-                        onChange={(event) => setDate(event.target.value)} required />
-                    </label>
-                  </div>
-                )}
-
-                {!receiptId && branchesReady && (
-                  <section className="branch-picker" aria-labelledby="branch-title">
-                    <h3 id="branch-title">Store branch <small>Optional</small></h3>
-                    <label>Saved branch
-                      <select aria-label="Saved branch"
-                        value={branchDraft?.storeKey === addressKey(store) && branchDraft.location?.id ? branchDraft.location.id : ''}
-                        onChange={(event) => {
-                          const branch = branches.find((entry) => entry.id === event.target.value)
-                          setBranchDraft(branch ? {
-                            storeKey: addressKey(store), address: branch.address, location: branch, confirmed: true,
-                          } : null)
-                          setBranchMessage(branch ? 'Using your saved branch.' : 'This receipt will be saved without a location.')
-                        }}>
-                        <option value="">No saved branch selected</option>
-                        {branches.filter((entry) => addressKey(entry.store) === addressKey(store)).map((branch) => (
-                          <option key={branch.id} value={branch.id}>{branch.address}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <PlaceSearch key={addressKey(store)} onSelect={(place) => {
-                      const selectedStore = store.trim() || place.name
-                      const existing = branches.find((branch) => addressKey(branch.store) === addressKey(selectedStore) &&
-                        addressKey(branch.address) === addressKey(place.address))
-                      if (!store.trim()) setStore(selectedStore)
-                      setBranchDraft({
-                        storeKey: addressKey(selectedStore),
-                        address: place.address,
-                        location: existing ?? place,
-                        confirmed: true,
-                      })
-                      setBranchMessage('Branch selected. It will be linked when you save.')
-                    }} />
-                    <label>Merchant address
-                      <input value={branchDraft?.storeKey === addressKey(store) ? branchDraft.address : ''}
-                        placeholder="Street, city, state, ZIP" maxLength={500}
-                        onChange={(event) => {
-                          setBranchDraft({ storeKey: addressKey(store), address: event.target.value, location: null, confirmed: false })
-                          setBranchMessage('')
-                        }} />
-                    </label>
-                    <button className="button secondary" type="button" disabled={!branchDraft?.address.trim() || !store.trim()}
-                      onClick={lookUpEnteredAddress}>Find U.S. address</button>
-                    <p className="trend-note">New address lookups send the merchant address to the U.S. Census Geocoder.</p>
-                    {branchDraft?.storeKey === addressKey(store) && branchDraft.location && (
-                      <div className="branch-match">
-                        <p>{branchDraft.location.address}</p>
-                        <a href={`https://www.openstreetmap.org/?mlat=${branchDraft.location.latitude}&mlon=${branchDraft.location.longitude}#map=17/${branchDraft.location.latitude}/${branchDraft.location.longitude}`}
-                          target="_blank" rel="noreferrer">Check on map</a>
-                        <label className="check-label">
-                          <input type="checkbox" checked={branchDraft.confirmed}
-                            onChange={(event) => setBranchDraft({ ...branchDraft, confirmed: event.target.checked })} />
-                          Use this branch when saving
-                        </label>
-                      </div>
-                    )}
-                    <p className="form-status" role="status">{branchMessage}</p>
-                  </section>
-                )}
-
-                <div className="items-heading">
-                  <h3>Line items</h3>
-                  <button className="button quiet" type="button" onClick={() => setItems(
-                    (current) => [...current, blankItem()],
-                  )}><Icon name="plus" /> Add item</button>
+            {selectedReceipt && (
+              <section className="split" aria-labelledby="receipt-detail-title">
+                <div className="split-side">
+                  <ReceiptPaper store={selectedReceipt.store} date={formatDate(selectedReceipt.purchased_on)}
+                    lines={receiptLines(selectedReceipt.receipt_items)}
+                    subtotal={dollars.format(receiptTotal(selectedReceipt) / 100)} />
                 </div>
-                {categoryReady && (
-                  <p className="trend-note category-help">
-                    Leave the category blank to use the suggestion. Enter a category to remember it for this store and item name.
-                  </p>
-                )}
-                {items.map((item, index) => (
-                  <fieldset className="item-row" key={item.id}>
-                    <legend className="visually-hidden">Item {index + 1}</legend>
-                    <label>Item name
-                      <input value={item.name} placeholder="e.g. Whole milk"
-                        onChange={(event) => updateItem(item.id, 'name', event.target.value)} />
-                    </label>
-                    <label>Qty
-                      <input type="number" step="any" value={item.quantity}
-                        onChange={(event) => updateItem(item.id, 'quantity', event.target.value)} />
-                    </label>
-                    <label>Line total ($)
-                      <input type="number" step="0.01" value={item.total} placeholder="0.00"
-                        onChange={(event) => updateItem(item.id, 'total', event.target.value)} />
-                    </label>
-                    <button className="button icon-button" type="button" aria-label={`Remove item ${index + 1}`}
-                      onClick={() => setItems((current) => current.filter((entry) => entry.id !== item.id))}>
-                      <Icon name="close" />
-                    </button>
-                    {categoryReady && (
-                      <label className="draft-category">Category
-                        <input list="receipt-category-options" value={item.category} maxLength={64}
-                          placeholder={resolveCategory(categoryRules, activeStore, item.name)}
-                          onChange={(event) => updateItem(item.id, 'category', event.target.value)} />
-                      </label>
-                    )}
-                  </fieldset>
-                ))}
-
-                <div className="review-footer">
+                <div className="split-main stack">
+                  <h2 className="h-section" id="receipt-detail-title">{selectedReceipt.store}, {formatShortDate(selectedReceipt.purchased_on)}</h2>
+                  {categoryReady && <p className="muted small">Change a category and save it to reuse it for this store and item name.</p>}
+                  {categoryReady && categoryStatus && <p className="note" role="status">{categoryStatus}</p>}
+                  {selectedReceipt.receipt_items.length === 0 && <p className="muted">No items saved on this receipt yet.</p>}
+                  <ul className="item-list">
+                    {selectedReceipt.receipt_items.map((item) => {
+                      const category = resolveCategory(categoryRules, selectedReceipt.store, item.item_name, item.category)
+                      return (
+                        <li key={item.id} className="item-line">
+                          <div className="row-between">
+                            <span>{item.item_name} × {item.quantity}</span>
+                            <strong>{dollars.format(item.line_total_cents / 100)}</strong>
+                          </div>
+                          {categoryReady && (
+                            <form key={category} className="inline-form" onSubmit={(event) => saveItemCategory(event, item.id)}>
+                              <label className="field field-inline">Category
+                                <input name="category" list="receipt-category-options" defaultValue={category}
+                                  maxLength={64} required disabled={busy} />
+                              </label>
+                              <button className="btn btn-secondary" type="submit" disabled={busy}>Save category</button>
+                            </form>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
                   <div>
-                    <span className="muted">Entered line totals</span>
-                    <strong>{dollars.format(enteredCents / 100)}</strong>
+                    <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => {
+                      setReceiptId(selectedReceipt.id)
+                      startScan()
+                    }}>Add items to this receipt</button>
                   </div>
-                  {!receiptId && subtotalCents !== null && (
-                    <p className={subtotalMatches ? 'review-status match' : 'review-status warning'} role="status">
-                      Scanned subtotal {azureSubtotal.toFixed(2)}.{' '}
-                      {missingPrices > 0
-                        ? `${missingPrices} item(s) still need a price.`
-                        : subtotalMatches
-                          ? 'Totals match. Review each line before saving.'
-                          : 'Totals differ. Check items, prices, or discounts.'}
-                    </p>
-                  )}
-                  <button className="button primary" type="submit">
-                    {receiptId ? 'Save items' : 'Save receipt'}
-                  </button>
                 </div>
-              </fieldset>
-            </form>
-          </section>
+              </section>
+            )}
+          </div>
+        )}
 
-            <section className="panel" aria-labelledby="spending-title" hidden={view !== 'overview'}>
-              <div className="panel-heading">
-                <h2 id="spending-title">Monthly spending</h2>
-                <p className="muted">Saved line totals in USD.</p>
+        {view === 'capture' && (
+          <form className="stack-xl" onSubmit={saveReceipt}>
+            <div className="page-title-row">
+              <div>
+                <h1 className="h-page">{scanned ? 'Check the scan' : 'Scan a receipt'}</h1>
+                <p className="lede">{scanned
+                  ? 'Compare each line with your photo. Fix anything the scanner misread, then save.'
+                  : 'Upload a photo to read it automatically, or type the items in by hand.'}</p>
               </div>
-              {months.length === 0
-                ? <p className="empty">Save a receipt to see monthly totals.</p>
-                : <SpendingChart months={months} />}
-            </section>
-
-            <section className="panel" id="history" aria-labelledby="history-title" hidden={view === 'capture'}>
-              <div className="panel-heading">
-                <h2 id="history-title">{view === 'overview' ? 'Recent receipts' : 'Saved receipts'}</h2>
-                <label className="search"><Icon name="search" />
-                  <input type="search" aria-label="Search receipts" placeholder="Search stores, items, or dates"
-                    value={search} onChange={(event) => setSearch(event.target.value)} />
-                </label>
-              </div>
-              {historyError && <p className="empty" role="alert">{historyError}</p>}
-              {categoryReady && <p className="form-status" role="status">{categoryStatus}</p>}
-              {!historyError && visibleReceipts.length === 0 && (
-                <p className="empty">{query ? 'No receipts match your search.' : 'No receipts yet.'}</p>
+              {(scanned || items.some((item) => item.name || item.total)) && (
+                <button className="link-button" type="button" disabled={busy} onClick={discardScan}>Discard scan</button>
               )}
-              <div className="history-list">
-                {visibleReceipts.length > 0 && (
-                  <div className="receipt-columns" aria-hidden="true">
-                    <span>Store</span><span>Purchase date</span><span>Line total</span>
-                  </div>
-                )}
-                {(view === 'overview' && !query ? visibleReceipts.slice(0, 5) : visibleReceipts).map((receipt) => (
-                  <details key={receipt.id} className="history-receipt">
-                    <summary>
-                      <span className="receipt-meta">
-                        <span className="history-icon"><Icon name="receipt" /></span>
-                        <strong>{receipt.store}</strong>
-                      </span>
-                      <time dateTime={receipt.purchased_on}>{dateLabel.format(new Date(receipt.purchased_on))}</time>
-                      <strong className="receipt-amount">{dollars.format(receiptTotal(receipt) / 100)}</strong>
-                      <Icon name="chevron" />
-                    </summary>
-                    <div className="history-details">
-                      {receipt.receipt_items.length === 0 && <p className="muted">No items recorded.</p>}
-                      <ul>
-                        {receipt.receipt_items.map((item) => {
-                          const category = resolveCategory(categoryRules, receipt.store, item.item_name, item.category)
-                          return (
-                            <li key={item.id} className="history-item">
-                              <div className="history-item-line">
-                                <span>{item.item_name} × {item.quantity}</span>
-                                <strong>{dollars.format(item.line_total_cents / 100)}</strong>
-                              </div>
-                              {categoryReady && (
-                                <form key={category} className="history-category"
-                                  onSubmit={(event) => saveItemCategory(event, item.id)}>
-                                  <label>Category
-                                    <input name="category" list="receipt-category-options" defaultValue={category}
-                                      maxLength={64} required disabled={busy} />
-                                  </label>
-                                  <button className="button quiet" type="submit" disabled={busy}>Save category</button>
-                                </form>
-                              )}
-                            </li>
-                          )
-                        })}
-                      </ul>
-                      <button className="button quiet" type="button" disabled={busy} onClick={() => {
-                        setReceiptId(receipt.id)
-                        openView('capture')
-                      }}>Add items to this receipt</button>
+            </div>
+
+            <fieldset className="plain-fieldset" disabled={busy}>
+              <div className="split split-top">
+                <section className="split-side stack-sm" aria-label="Your receipt photo">
+                  {scanned && (
+                    <>
+                      <div className="small strong muted">Your photo</div>
+                      <div className="receipt-paper photo-paper"><img src={previewUrl} alt="The receipt you uploaded" /></div>
+                    </>
+                  )}
+                  <label className={scanned ? 'btn btn-secondary btn-block' : 'upload'}>
+                    <input className="visually-hidden" type="file" accept="image/jpeg,image/png"
+                      capture="environment" onChange={scanReceipt} />
+                    {scanned
+                      ? 'Scan another photo'
+                      : <><Icon name="scan" size={28} /><span className="strong">Choose a receipt photo</span><span className="small muted">JPEG or PNG, up to 4 MB. Photos are sent to Azure to be read.</span></>}
+                  </label>
+                  {scanText && (
+                    <details className="disclosure">
+                      <summary>Show the text the scanner read</summary>
+                      <pre>{scanText}</pre>
+                    </details>
+                  )}
+                </section>
+
+                <section className="split-main stack-lg" aria-label="Scanned details">
+                  {notice.text && (
+                    <p className={notice.tone === 'error' ? 'note note-warn' : 'note'} role="status" aria-busy={busy}>{notice.text}</p>
+                  )}
+
+                  <label className="field">Save to
+                    <select value={receiptId} onChange={(event) => { setSaved(false); setReceiptId(event.target.value) }}>
+                      <option value="">A new receipt</option>
+                      {receipts.map((receipt) => (
+                        <option key={receipt.id} value={receipt.id}>{receipt.store}, {receipt.purchased_on}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {!receiptId && (
+                    <div className="field-pair">
+                      <label className="field">Store
+                        <input value={store} placeholder="H-E-B" required
+                          onChange={(event) => { setSaved(false); setStore(event.target.value) }} />
+                      </label>
+                      <label className="field">Date
+                        <input type="date" value={date} required
+                          onChange={(event) => { setSaved(false); setDate(event.target.value) }} />
+                      </label>
                     </div>
-                  </details>
-                ))}
+                  )}
+
+                  <div>
+                    <div className="table-panel table-panel-flush">
+                      <table className="items-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">Item</th>
+                            <th scope="col" className="col-qty">Qty</th>
+                            <th scope="col" className="col-total">Line total</th>
+                            {categoryReady && <th scope="col" className="col-category">Category</th>}
+                            <th scope="col" className="col-remove"><span className="visually-hidden">Remove</span></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((item, index) => (
+                            <tr key={item.id}>
+                              <td><input className="cell-input" aria-label={`Item ${index + 1} name`} value={item.name} placeholder="Whole milk"
+                                onChange={(event) => updateItem(item.id, 'name', event.target.value)} /></td>
+                              <td><input className="cell-input" aria-label={`Item ${index + 1} quantity`} type="number" step="any" value={item.quantity}
+                                onChange={(event) => updateItem(item.id, 'quantity', event.target.value)} /></td>
+                              <td><input className="cell-input cell-money" aria-label={`Item ${index + 1} line total in dollars`} type="number" step="0.01" value={item.total} placeholder="0.00"
+                                onChange={(event) => updateItem(item.id, 'total', event.target.value)} /></td>
+                              {categoryReady && (
+                                <td><input className="cell-input" aria-label={`Item ${index + 1} category`} list="receipt-category-options" value={item.category} maxLength={64}
+                                  placeholder={resolveCategory(categoryRules, activeStore, item.name)}
+                                  onChange={(event) => updateItem(item.id, 'category', event.target.value)} /></td>
+                              )}
+                              <td>
+                                <button type="button" className="icon-button" aria-label={`Remove ${item.name.trim() || 'item ' + (index + 1)}`}
+                                  onClick={() => { setSaved(false); setItems((current) => current.filter((entry) => entry.id !== item.id)) }}>
+                                  <Icon name="close" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="table-footer">
+                        <button type="button" className="btn btn-quiet" onClick={() => { setSaved(false); setItems((current) => [...current, blankItem()]) }}>
+                          <Icon name="plus" size={18} /> Add a line
+                        </button>
+                      </div>
+                    </div>
+                    {categoryReady && <p className="muted small spaced">Leave a category blank to use the suggestion. A category you enter is remembered for this store and item name.</p>}
+                  </div>
+
+                  {!receiptId && subtotalCents !== null && (
+                    missingPrices > 0 ? (
+                      <div className="banner banner-warn" role="status">
+                        <Icon name="alert" size={22} />
+                        <div>
+                          <div className="banner-title">Your items add up to {dollars.format(enteredCents / 100)} so far, and {missingPrices === 1 ? '1 line still needs a price' : `${missingPrices} lines still need a price`}.</div>
+                          <div>The printed subtotal is {dollars.format(subtotalCents / 100)}.</div>
+                        </div>
+                      </div>
+                    ) : subtotalMatches ? (
+                      <div className="banner banner-ok" role="status">
+                        <Icon name="check" size={22} strokeWidth={2.4} />
+                        <div>
+                          <div className="banner-title">Your items add up to {dollars.format(enteredCents / 100)}, matching the printed subtotal.</div>
+                          <div>Ready to save.</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="banner banner-warn" role="status">
+                        <Icon name="alert" size={22} />
+                        <div>
+                          <div className="banner-title">Your items add up to {dollars.format(enteredCents / 100)}, {dollars.format(Math.abs(diffCents) / 100)} {diffCents > 0 ? 'more' : 'less'} than the printed subtotal of {dollars.format(subtotalCents / 100)}.</div>
+                          <div>Compare each line total with the photo. You can still save if the receipt itself is off.</div>
+                        </div>
+                      </div>
+                    )
+                  )}
+                  {!receiptId && subtotalCents === null && scanned && (
+                    <p className="note" role="status">The scanner didn’t find a printed subtotal, so there’s nothing to compare your items against. Check each line against the photo.</p>
+                  )}
+
+                  {!receiptId && branchesReady && (
+                    <section className="panel branch-panel" aria-labelledby="branch-title">
+                      <div className="branch-head">
+                        <span className="branch-icon"><Icon name="pin" size={22} /></span>
+                        <div className="stack-xs">
+                          <h2 className="h-small" id="branch-title">Store branch</h2>
+                          {branchSuggested && (
+                            <p className="branch-text muted">We found <strong>{branchDraft.location.address}</strong> from the address on your receipt. The map pin is approximate.{' '}
+                              <a href={`https://www.openstreetmap.org/?mlat=${branchDraft.location.latitude}&mlon=${branchDraft.location.longitude}#map=17/${branchDraft.location.latitude}/${branchDraft.location.longitude}`}
+                                target="_blank" rel="noreferrer">Check on the map</a></p>
+                          )}
+                          {branchConfirmed && (
+                            <p className="branch-text">Pinned to <strong>{branchDraft.location.address}</strong>. Future receipts from this address will use it automatically.</p>
+                          )}
+                          {!hasBranchDraft && branchSkipped && (
+                            <p className="branch-text muted">No branch saved. This receipt won’t appear on the map.</p>
+                          )}
+                          {!hasBranchDraft && !branchSkipped && (
+                            <p className="branch-text muted">{branchMessage || 'Pin this receipt to a store branch so it shows up on the map.'}</p>
+                          )}
+                          {hasBranchDraft && branchMessage && !branchConfirmed && <p className="small muted" role="status">{branchMessage}</p>}
+                        </div>
+                      </div>
+                      <div className="branch-actions">
+                        {branchSuggested && (
+                          <button type="button" className="btn btn-secondary" onClick={() => {
+                            setBranchDraft({ ...branchDraft, confirmed: true })
+                            setBranchSkipped(false)
+                          }}>Use this branch</button>
+                        )}
+                        <button type="button" className="btn btn-outline" aria-expanded={branchSearchOpen}
+                          onClick={() => setBranchSearchOpen(!branchSearchOpen)}>{branchConfirmed ? 'Change branch' : 'Search for a store'}</button>
+                        {!branchConfirmed && (
+                          <button type="button" className="btn btn-tertiary" onClick={() => {
+                            setBranchDraft(null)
+                            setBranchSkipped(true)
+                            setBranchMessage('')
+                          }}>Skip</button>
+                        )}
+                      </div>
+                      {branchSearchOpen && (
+                        <div className="branch-more stack">
+                          <PlaceSearch key={addressKey(store)} onSelect={(place) => {
+                            const selectedStore = store.trim() || place.name
+                            const existing = branches.find((branch) => addressKey(branch.store) === addressKey(selectedStore) &&
+                              addressKey(branch.address) === addressKey(place.address))
+                            if (!store.trim()) setStore(selectedStore)
+                            setBranchSkipped(false)
+                            setBranchDraft({
+                              storeKey: addressKey(selectedStore),
+                              address: place.address,
+                              location: existing ?? place,
+                              confirmed: true,
+                            })
+                            setBranchMessage('')
+                            setBranchSearchOpen(false)
+                          }} />
+                          <label className="field">Saved branch
+                            <select
+                              value={branchDraft?.storeKey === addressKey(store) && branchDraft.location?.id ? branchDraft.location.id : ''}
+                              onChange={(event) => {
+                                const branch = branches.find((entry) => entry.id === event.target.value)
+                                setBranchSkipped(false)
+                                setBranchDraft(branch ? {
+                                  storeKey: addressKey(store), address: branch.address, location: branch, confirmed: true,
+                                } : null)
+                                setBranchMessage(branch ? '' : 'This receipt will be saved without a branch.')
+                              }}>
+                              <option value="">No saved branch selected</option>
+                              {branches.filter((entry) => addressKey(entry.store) === addressKey(store)).map((branch) => (
+                                <option key={branch.id} value={branch.id}>{branch.address}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="field">Address on the receipt
+                            <input value={branchDraft?.storeKey === addressKey(store) ? branchDraft.address : ''}
+                              placeholder="Street, city, state, ZIP" maxLength={500}
+                              onChange={(event) => {
+                                setBranchDraft({ storeKey: addressKey(store), address: event.target.value, location: null, confirmed: false })
+                                setBranchMessage('')
+                              }} />
+                          </label>
+                          <div>
+                            <button className="btn btn-secondary" type="button" disabled={!branchDraft?.address.trim() || !store.trim()}
+                              onClick={lookUpEnteredAddress}>Look up this U.S. address</button>
+                          </div>
+                          <p className="small muted">Looking up an address sends it to the U.S. Census Geocoder.</p>
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  <div className="save-row">
+                    {saved ? (
+                      <div className="save-done" role="status">
+                        <span className="status-pill"><Icon name="check" size={20} strokeWidth={2.4} /> {receiptId ? 'Items saved' : 'Receipt saved'}</span>
+                        <button className="link-button" type="button" onClick={() => openView('overview')}>Back to overview</button>
+                      </div>
+                    ) : (
+                      <button className="btn btn-primary btn-large" type="submit">{receiptId ? 'Save items' : 'Save receipt'}</button>
+                    )}
+                    <span className="small muted">{enteredItems.length === 1 ? '1 item' : `${enteredItems.length} items`}, {dollars.format(enteredCents / 100)}</span>
+                  </div>
+                </section>
               </div>
-              {view === 'overview' && receipts.length > 5 && !query && (
-                <button className="button quiet" type="button" onClick={() => openView('receipts')}>View all receipts</button>
-              )}
-            </section>
-        </div>
+            </fieldset>
+          </form>
+        )}
       </main>
     </div>
   )
