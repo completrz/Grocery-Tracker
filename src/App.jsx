@@ -6,7 +6,7 @@ import Overview from './Overview'
 import SignIn from './SignIn'
 import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
 import { dollars, formatDate, formatShortDate, receiptLines, receiptTotal } from './format'
-import { Icon, Logo, ReceiptPaper } from './ui'
+import { GhostRows, Icon, Logo, ReceiptPaper } from './ui'
 import { supabase } from './supabase'
 
 function todayForDateInput() {
@@ -478,10 +478,22 @@ function Tracker({ email }) {
 
             {historyError && <p className="note note-warn" role="alert">{historyError}</p>}
             {!historyError && !loaded && <div className="skeleton" style={{ height: 220 }} role="status" aria-label="Loading your receipts" />}
-            {!historyError && loaded && visibleReceipts.length === 0 && (
-              <p className="muted">{query
-                ? 'No receipts match that search. Try a store name, an item, or a date like 2026-11.'
-                : 'No receipts yet. Scan your first one to start tracking.'}</p>
+            {!historyError && loaded && visibleReceipts.length === 0 && query && (
+              <p className="muted">No receipts match that search. Try a store name, an item, or a date like 2026-11.</p>
+            )}
+            {!historyError && loaded && receipts.length === 0 && (
+              <div className="stack">
+                <div className="table-panel">
+                  <table>
+                    <thead>
+                      <tr><th scope="col">Store</th><th scope="col">Date</th><th scope="col" className="num">Items</th><th scope="col" className="num">Total</th></tr>
+                    </thead>
+                    <tbody><GhostRows columns={4} rows={5} /></tbody>
+                  </table>
+                </div>
+                <p className="muted">No receipts yet. Scan your first one and it will be listed here.</p>
+                <div><button className="btn btn-primary" type="button" onClick={startScan}><Icon name="scan" /> Scan a receipt</button></div>
+              </div>
             )}
 
             {visibleReceipts.length > 0 && (
