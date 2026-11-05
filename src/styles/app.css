@@ -353,3 +353,18 @@ tbody tr:last-child td { border-bottom: 0; }
 
 @keyframes tilt-in { from { opacity: 0; transform: translateY(24px) rotate(-6deg); } }
 .receipt-tilted { animation: tilt-in .7s cubic-bezier(.2, .7, .2, 1) backwards; }
+
+/* Months without receipts keep their slot, drawn as a thin tick like empty days on the overview. */
+.month-bar.is-empty { height: 2px; background: var(--line); border-radius: 1px; animation: none; }
+.month-label.is-quiet { color: var(--muted); opacity: .8; }
+.chart-hint { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin-top: 0; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.chart-hint p { font-size: 15px; }
+
+/* Placeholders for panels with nothing to show yet */
+.ghost-text { display: inline-block; height: 12px; border-radius: 6px; background: var(--track); vertical-align: middle; }
+.ghost .bar-track { background: var(--line-soft); }
+.ghost-chart { padding: 8px 0 4px; }
+.ghost-chart svg { display: block; width: 100%; height: 160px; }
+.ghost-line { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 5 6; }
+.ghost-chart p { margin-top: 8px; }
+.ghost td { border-bottom-color: var(--line-soft); }

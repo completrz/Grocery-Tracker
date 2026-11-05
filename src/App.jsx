@@ -460,7 +460,7 @@ function Tracker({ email }) {
         )}
 
         {view === 'trends' && (
-          <Trends receipts={receipts} rules={categoryRules} locationsReady={locationsReady} onSaveLocation={saveReceiptLocation} />
+          <Trends receipts={receipts} rules={categoryRules} locationsReady={locationsReady} onSaveLocation={saveReceiptLocation} onScan={startScan} />
         )}
 
         {view === 'receipts' && (
