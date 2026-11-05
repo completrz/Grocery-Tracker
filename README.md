@@ -11,7 +11,9 @@
 - **Add a receipt in seconds.** Photograph it and CartTrail reads the store, date, items, quantities and prices for you. You can also type items in by hand.
 - **Catch mistakes before they count.** Your items are added up and compared with the printed subtotal, live, as you edit. If they differ, you're told by how much, and you can fix the line right there.
 - **See your month at a glance.** The overview shows your last 30 days, a spending-by-day chart, your latest receipt and where the money went.
+- **See what changed.** Plain-language notes point out categories and stores that are above your usual month, and what's gone up or down since the 30 days before.
 - **Follow your trends.** Compare months over 3, 6 or 12 months, filter by store, watch **Price watch** for what's gone up or down, and see spending by category.
+- **Compare your stores.** See trips, average spend per trip and share of spending for each store, and which store charges more for the same item.
 - **Know where you shop.** Pin a receipt to a store branch and see all your stores on a map, sized by what you spend there. CartTrail suggests the branch from the address on the receipt.
 - **Look around before you start.** A new account with no receipts sees clearly labelled sample data, so you can see what the app looks like with history. It disappears as soon as you save your first receipt.
 
@@ -85,6 +87,15 @@ Apply these in order. The app detects missing migrations and degrades gracefully
 Trends charts show monthly spending, product prices per recorded unit, and category spending. Period and store filters apply to the charts, rankings and map. **Price watch** compares each product's latest per-unit price with its price three months earlier, and uses the store filter but not the period filter. The figures come from saved receipt lines in USD.
 
 The map needs the receipt locations migration. Choose a saved receipt and pin its store branch manually, or let a suggested branch be saved with the receipt. Branches with the same saved coordinates are grouped. Opening the map loads the OpenStreetMap basemap through Leaflet.
+
+## Insights
+
+The overview's **What changed** list is computed in [`src/insights.js`](src/insights.js) from saved receipts, with no extra storage:
+
+- **Windows.** Receipts are grouped into 30-day windows counted back from today. "Usual" is the average of up to three earlier windows, and only windows your history fully covers count. If you have less history than that, the "above your usual" notes simply don't appear.
+- **Above your usual.** A category or store is flagged when the last 30 days are at least 25% and at least $10 above its usual amount. Uncategorized and Non-grocery are never flagged.
+- **Against the 30 days before.** The biggest rise and the biggest drop among categories are shown when they move by at least $5 and 15%. A drop is only reported if something was still spent.
+- **Stores on Trends.** The store table follows the period filter but ignores the store filter, so stores stay comparable. "Same item, different store" compares per-unit prices for items whose names match exactly at two or more stores. It shows gaps of 10% to 150% with at least $0.20 of extra spending, since larger gaps are usually different pack sizes.
 
 ## Suggested receipt branches
 
