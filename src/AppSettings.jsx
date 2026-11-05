@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { isIOS, isStandalone, useInstallPrompt } from './install'
-import { currentSubscription, pushConfigured, pushSupported, subscribePush, unsubscribePush } from './push'
+import { currentSubscription, notifyFunction, pushConfigured, pushSupported, subscribePush, unsubscribePush } from './push'
 import { supabase } from './supabase'
 import { Icon } from './ui'
 
@@ -108,7 +108,7 @@ function NotificationsCard({ userId }) {
     setBusy(true)
     setMessage('')
     try {
-      const { data, error } = await supabase.functions.invoke('notify', { body: { action: 'test' } })
+      const { data, error } = await supabase.functions.invoke(notifyFunction, { body: { action: 'test' } })
       if (error) throw error
       setMessage(data.delivered > 0 ? 'Sent. It should arrive in a few seconds.' : 'No device accepted the notification. Try turning notifications off and on again.')
     } catch {

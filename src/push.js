@@ -2,6 +2,12 @@
 
 const PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
+/**
+ * The Edge Function that sends notifications. The Supabase dashboard editor gives new functions random names,
+ * so a different name can be set with VITE_NOTIFY_FUNCTION.
+ */
+export const notifyFunction = import.meta.env.VITE_NOTIFY_FUNCTION || 'notify'
+
 /** True once the site has been given a VAPID public key at build time. */
 export const pushConfigured = Boolean(PUBLIC_KEY)
 
