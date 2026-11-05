@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { pickSubtotal } from './subtotal.ts'
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: corsHeaders })
@@ -143,13 +144,15 @@ Deno.serve(async (request) => {
 
       const analysis = result.analyzeResult
       const fields = analysis?.documents?.[0]?.fields
+      const subtotal = pickSubtotal(fields, analysis?.content ?? '')
 
       return json({
         store: fields?.MerchantName?.valueString ?? '',
         address: fields?.MerchantAddress?.valueString ?? fields?.MerchantAddress?.content ?? '',
         country: fields?.CountryRegion?.valueCountryRegion ?? '',
         date: fields?.TransactionDate?.valueDate ?? '',
-        subtotal: fields?.Subtotal?.valueCurrency?.amount ?? null,
+        subtotal: subtotal.amount,
+        subtotalSource: subtotal.source,
         text: analysis?.content ?? '',
         items: (fields?.Items?.valueArray ?? []).map(
           ({ valueObject: item }: { valueObject: Record<string, {

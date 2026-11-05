@@ -63,6 +63,8 @@ function Tracker({ email, userId }) {
   const [receiptId, setReceiptId] = useState('')
   const [scanText, setScanText] = useState('')
   const [azureSubtotal, setAzureSubtotal] = useState(null)
+  // A string while the scan found no printed subtotal and the user can type it in; null otherwise.
+  const [manualSubtotal, setManualSubtotal] = useState(null)
   const [notice, setNotice] = useState({ text: '', tone: 'info' })
   const [loaded, setLoaded] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -259,6 +261,7 @@ function Tracker({ email, userId }) {
       }
 
       setAzureSubtotal(data.subtotal ?? null)
+      setManualSubtotal(data.subtotal == null ? '' : null)
       if (!receiptId) {
         setStore(data.store ?? '')
       }
@@ -383,6 +386,7 @@ function Tracker({ email, userId }) {
       setScanText('')
       setPreviewUrl('')
       setAzureSubtotal(null)
+    setManualSubtotal(null)
       setBranchDraft(null)
       setBranchSkipped(false)
       setBranchMessage('')
@@ -478,6 +482,7 @@ function Tracker({ email, userId }) {
     setScanText('')
     setPreviewUrl('')
     setAzureSubtotal(null)
+    setManualSubtotal(null)
     setBranchDraft(null)
     setBranchSkipped(false)
     setBranchMessage('')
@@ -787,8 +792,24 @@ function Tracker({ email, userId }) {
                       </div>
                     )
                   )}
-                  {!receiptId && subtotalCents === null && scanned && (
-                    <p className="note" role="status">The scanner didn’t find a printed subtotal, so there’s nothing to compare your items against. Check each line against the photo.</p>
+                  {!receiptId && manualSubtotal !== null && (
+                    <div className="stack-sm">
+                      <p className="note" role="status">
+                        {subtotalCents === null
+                          ? 'The scanner couldn’t read a printed subtotal. Type it from your receipt and CartTrail will check your items against it.'
+                          : 'Using the subtotal you typed.'}
+                      </p>
+                      <label className="field">Printed subtotal ($)
+                        <input type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={manualSubtotal}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setManualSubtotal(value)
+                            setSaved(false)
+                            const amount = Number(value)
+                            setAzureSubtotal(value.trim() !== '' && Number.isFinite(amount) && amount >= 0 ? amount : null)
+                          }} />
+                      </label>
+                    </div>
                   )}
 
                   {!receiptId && branchesReady && (
