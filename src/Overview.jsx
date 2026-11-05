@@ -1,6 +1,6 @@
 import { normalizeLabel, resolveCategory } from './categories'
 import { dollars, formatDate, formatShortDate, localDayKey, plural, receiptLines, receiptTotal, shortDateLabel } from './format'
-import { CategoryBars, Icon, ReceiptPaper } from './ui'
+import { CategoryBars, GhostBars, GhostReceipt, GhostRows, Icon, ReceiptPaper } from './ui'
 
 const DAYS = 30
 
@@ -73,10 +73,45 @@ export default function Overview({ receipts, rules, loaded, error, onScan, onOpe
   const withItems = receipts.filter((receipt) => receipt.receipt_items.length > 0)
   if (withItems.length === 0) {
     return (
-      <section className="empty-state">
-        <h1 className="headline">No receipts yet. Scan your first one to start tracking.</h1>
-        <button className="btn btn-primary btn-large" type="button" onClick={onScan}><Icon name="scan" /> Scan a receipt</button>
-      </section>
+      <div className="stack-xxl">
+        <section className="split">
+          <div className="split-main stack-lg">
+            <h1 className="headline">No receipts yet. Scan your first one to start tracking.</h1>
+            <p className="lede">Your spending for the last 30 days, your latest receipt and where the money went will fill in here.</p>
+            <div><button className="btn btn-primary btn-large" type="button" onClick={onScan}><Icon name="scan" /> Scan a receipt</button></div>
+            <figure className="panel day-panel">
+              <figcaption>Spending by day</figcaption>
+              <div className="day-bars" aria-hidden="true">
+                {Array.from({ length: DAYS }, (_, index) => <div key={index} className="day-bar" />)}
+              </div>
+              <div className="day-axis" aria-hidden="true"><span>30 days ago</span><span /><span>Today</span></div>
+            </figure>
+          </div>
+          <aside className="split-side stack-sm" aria-label="Latest receipt">
+            <h2 className="h-small">Latest receipt</h2>
+            <GhostReceipt />
+            <p className="muted small">Your most recent receipt shows up here.</p>
+          </aside>
+        </section>
+
+        <section className="split">
+          <div className="split-main">
+            <h2 className="h-section">Recent receipts</h2>
+            <div className="table-panel">
+              <table>
+                <thead>
+                  <tr><th scope="col">Store</th><th scope="col">Date</th><th scope="col" className="num">Items</th><th scope="col" className="num">Total</th></tr>
+                </thead>
+                <tbody><GhostRows columns={4} rows={4} /></tbody>
+              </table>
+            </div>
+          </div>
+          <div className="split-side">
+            <h2 className="h-section">Where it went</h2>
+            <GhostBars count={5} />
+          </div>
+        </section>
+      </div>
     )
   }
 

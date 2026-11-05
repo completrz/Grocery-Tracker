@@ -100,3 +100,25 @@ export function GhostRows({ columns, rows = 3 }) {
     </tr>
   ))
 }
+
+// A blank receipt strip with the same silhouette as <ReceiptPaper>.
+export function GhostReceipt() {
+  const rows = [110, 90, 120, 100]
+  return (
+    <div className="receipt-paper" aria-hidden="true">
+      <div className="receipt-body">
+        <div className="ghost-center"><span className="ghost-text" style={{ width: 70 }} /></div>
+        <div className="ghost-center"><span className="ghost-text" style={{ width: 110 }} /></div>
+        <div className="receipt-rule" />
+        {rows.map((width, index) => (
+          <div className="receipt-row" key={index}><span className="ghost-text" style={{ width }} /><span className="ghost-text" style={{ width: 36 }} /></div>
+        ))}
+        <div className="receipt-rule receipt-rule-last" />
+        <div className="receipt-row receipt-subtotal"><span className="ghost-text" style={{ width: 80 }} /><span className="ghost-text" style={{ width: 44 }} /></div>
+      </div>
+      <svg className="receipt-edge" viewBox="0 0 300 10" preserveAspectRatio="none" aria-hidden="true">
+        <path d={TORN_EDGE} fill="#FFFFFF" />
+      </svg>
+    </div>
+  )
+}

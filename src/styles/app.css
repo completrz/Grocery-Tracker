@@ -368,3 +368,6 @@ tbody tr:last-child td { border-bottom: 0; }
 .ghost-line { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 5 6; }
 .ghost-chart p { margin-top: 8px; }
 .ghost td { border-bottom-color: var(--line-soft); }
+.ghost-center { display: flex; justify-content: center; margin: 4px 0; }
+.receipt-subtotal .ghost-text { background: rgba(23, 32, 27, .12); }
+.receipt-row { align-items: center; min-height: 22.75px; }
