@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 import Trends from './Trends'
+import PlaceSearch from './PlaceSearch'
 import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
 import { supabase } from './supabase'
 
@@ -664,6 +665,19 @@ function Tracker({ email }) {
                         ))}
                       </select>
                     </label>
+                    <PlaceSearch key={addressKey(store)} onSelect={(place) => {
+                      const selectedStore = store.trim() || place.name
+                      const existing = branches.find((branch) => addressKey(branch.store) === addressKey(selectedStore) &&
+                        addressKey(branch.address) === addressKey(place.address))
+                      if (!store.trim()) setStore(selectedStore)
+                      setBranchDraft({
+                        storeKey: addressKey(selectedStore),
+                        address: place.address,
+                        location: existing ?? place,
+                        confirmed: true,
+                      })
+                      setBranchMessage('Branch selected. It will be linked when you save.')
+                    }} />
                     <label>Merchant address
                       <input value={branchDraft?.storeKey === addressKey(store) ? branchDraft.address : ''}
                         placeholder="Street, city, state, ZIP" maxLength={500}

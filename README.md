@@ -45,3 +45,5 @@ Apply the [receipt locations migration](supabase/migrations/20261105010000_recei
 Apply [saved store branches](supabase/migrations/20261105020000_saved_store_branches.sql) after the earlier category and location migrations, and redeploy [hyper-handler](supabase/functions/hyper-handler/index.ts). The scan returns Azure's merchant address. A previously confirmed branch is reused; unfamiliar U.S. addresses are looked up through the U.S. Census Geocoder and require confirmation before being saved as a branch.
 
 The Census lookup needs no API key and returns approximate coordinates. Choosing a saved branch or skipping location remains available when an address is missing, outside the U.S., ambiguous, or unavailable. New address lookups send the merchant address to Census. Store branches and links are private to each account.
+
+To enable store-name search, add a Geoapify key as `GEOAPIFY_API_KEY` in Supabase Edge Function secrets and deploy the updated `hyper-handler`. Search accepts a store name plus a city, street, or ZIP code. Select the correct result before saving. Search sends the query text to Geoapify.

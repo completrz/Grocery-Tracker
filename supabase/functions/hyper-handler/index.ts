@@ -28,7 +28,48 @@ Deno.serve(async (request) => {
 
     if (request.headers.get('Content-Type')?.includes('application/json')) {
       const body = await request.json()
-      if (body.action !== 'locate-address' || typeof body.address !== 'string' ||
+      if (body?.action === 'search-places') {
+        const query = typeof body.query === 'string' ? body.query.trim() : ''
+        if (query.length < 3 || query.length > 180) {
+          return json({ error: 'Enter a store name and area between 3 and 180 characters.' }, 400)
+        }
+        const key = Deno.env.get('GEOAPIFY_API_KEY')
+        if (!key) return json({ error: 'Store search is not configured. You can still enter the receipt address.' }, 503)
+
+        const url = new URL('https://api.geoapify.com/v1/geocode/search')
+        url.search = new URLSearchParams({
+          text: query, type: 'amenity', format: 'json', limit: '6', apiKey: key,
+        }).toString()
+        try {
+          const response = await fetch(url, { signal: AbortSignal.timeout(8_000) })
+          if (!response.ok) return json({ error: 'Store search is temporarily unavailable.' }, 502)
+          const result = await response.json()
+          const places = []
+          const seen = new Set()
+          for (const place of result.results ?? []) {
+            const name = typeof place.name === 'string' ? place.name.trim() : ''
+            const street = [place.housenumber, place.street].filter(Boolean).join(' ')
+            const address = street && place.address_line2
+              ? street + ', ' + place.address_line2
+              : place.formatted
+            const latitude = place.lat
+            const longitude = place.lon
+            if (place.result_type !== 'amenity' || !name || typeof address !== 'string' || !address.trim() ||
+                address.length > 500 || typeof latitude !== 'number' || typeof longitude !== 'number' ||
+                !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+                Math.abs(latitude) > 85 || Math.abs(longitude) > 180) continue
+            const id = [latitude, longitude, address].join(',')
+            if (seen.has(id)) continue
+            seen.add(id)
+            places.push({ name, address, latitude, longitude })
+          }
+          return json({ places })
+        } catch {
+          return json({ error: 'Store search is temporarily unavailable.' }, 502)
+        }
+      }
+
+      if (body?.action !== 'locate-address' || typeof body.address !== 'string' ||
           body.address.length > 500 || body.address.trim().length < 8) {
         return json({ error: 'Enter a complete street address.' }, 400)
       }

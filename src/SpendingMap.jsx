@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
+import PlaceSearch from './PlaceSearch'
 import 'leaflet/dist/leaflet.css'
 
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
@@ -145,6 +146,13 @@ export default function SpendingMap({ receipts, onSave }) {
                 </option>)}
               </select>
             </label>
+            <PlaceSearch key={receipt.id} onSelect={(place) => {
+              const lat = place.latitude.toFixed(5)
+              const lng = place.longitude.toFixed(5)
+              setDraft({ id: receipt.id, lat, lng })
+              setMessage(place.name + ' · ' + place.address + '. Save to update the receipt location.')
+              map.current.setView([Number(lat), Number(lng)], 15)
+            }} />
             <div className="receipt-fields">
               <label>Latitude<input type="number" min="-85" max="85" step="any" required value={lat}
                 onChange={(event) => setDraft({ id: receipt.id, lat: event.target.value, lng })} /></label>
