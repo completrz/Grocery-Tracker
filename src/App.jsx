@@ -10,6 +10,14 @@ const dollars = new Intl.NumberFormat('en-US', {
   currency: 'USD',
 })
 
+function todayForDateInput() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return year + '-' + month + '-' + day
+}
+
 function blankItem() {
   return { id: crypto.randomUUID(), name: '', quantity: '1', total: '', category: '' }
 }
@@ -186,7 +194,7 @@ function Tracker({ email }) {
   const [branchMessage, setBranchMessage] = useState('')
   const [items, setItems] = useState(() => [blankItem()])
   const [store, setStore] = useState('')
-  const [date, setDate] = useState('')
+  const [date, setDate] = useState(todayForDateInput)
   const [receiptId, setReceiptId] = useState('')
   const [scanText, setScanText] = useState('')
   const [azureSubtotal, setAzureSubtotal] = useState(null)
@@ -342,6 +350,10 @@ function Tracker({ email }) {
       setPreviewUrl(URL.createObjectURL(file))
       setScanText(data.text ?? '')
 
+      if (!receiptId && (data.date || data.items.length > 0)) {
+        setDate(data.date || todayForDateInput())
+      }
+
       if (data.items.length === 0) {
         setMessage('No items found. Check the scanned text or enter the items manually.')
         return
@@ -350,7 +362,6 @@ function Tracker({ email }) {
       setAzureSubtotal(data.subtotal ?? null)
       if (!receiptId) {
         setStore(data.store ?? '')
-        setDate(data.date ?? '')
       }
 
       setItems(data.items.map((item) => ({
@@ -466,7 +477,7 @@ function Tracker({ email }) {
       setMessage(receiptId ? 'Items saved!' : 'Receipt saved!')
       setItems([blankItem()])
       setStore('')
-      setDate('')
+      setDate(todayForDateInput())
       setReceiptId('')
       setScanText('')
       setPreviewUrl('')
