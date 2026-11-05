@@ -401,3 +401,21 @@ tbody tr:last-child td { border-bottom: 0; }
 .insight-list li:last-child { border-bottom: 0; }
 .insight-list li > div { flex: 1 1 260px; min-width: 0; }
 .chip-inline { margin-left: 10px; vertical-align: middle; }
+
+/* Quick review, unlock progress, budget */
+.items-review > summary { list-style: none; }
+.items-review > summary::-webkit-details-marker { display: none; }
+.items-summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; cursor: pointer; font-weight: 600; color: var(--accent); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.items-summary::before { content: ''; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform .15s ease; }
+.items-review[open] > .items-summary::before { transform: rotate(45deg); }
+.items-review[open] > .items-summary { margin-bottom: 12px; }
+.unlock { margin-top: 16px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: 10px; }
+.budget-panel { display: flex; flex-direction: column; gap: 12px; }
+.budget-figure { margin: 0; font-size: 24px; letter-spacing: -0.01em; }
+.bar-fill.is-over { background: var(--warn-ink); }
+.save-done { width: 100%; display: flex; flex-direction: column; gap: 20px; }
+.save-done-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+
+.items-summary[hidden] { display: none; }
+/* After saving, show only the result and what it changed, not the emptied form. */
+.is-saved .split-side, .is-saved .split-main > :not(.save-row) { display: none; }

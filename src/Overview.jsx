@@ -1,5 +1,6 @@
 import { normalizeLabel, resolveCategory } from './categories'
-import { buildInsights } from './insights'
+import { useState } from 'react'
+import { buildInsights, savingsEstimate, unlockStatus } from './insights'
 import { dollars, formatDate, formatShortDate, localDayKey, plural, receiptLines, receiptTotal, shortDateLabel } from './format'
 import { CategoryBars, GhostBars, GhostReceipt, GhostRows, Icon, ReceiptPaper } from './ui'
 
@@ -59,7 +60,89 @@ function comparison(cents, previousCents) {
   return ` That’s ${dollars.format(Math.abs(diff) / 100)} ${diff < 0 ? 'less' : 'more'} than the 30 days before.`
 }
 
-export default function Overview({ receipts, rules, loaded, error, onScan, onOpenReceipt, onOpenView }) {
+function thisMonthCents(receipts) {
+  const month = localDayKey(new Date()).slice(0, 7)
+  return receipts.filter((receipt) => receipt.purchased_on.slice(0, 7) === month).reduce((sum, receipt) => sum + receiptTotal(receipt), 0)
+}
+
+function BudgetPanel({ budget, spentCents }) {
+  const [editing, setEditing] = useState(budget.cents == null)
+  const [value, setValue] = useState(budget.cents == null ? '' : String(budget.cents / 100))
+  const [problem, setProblem] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [now] = useState(() => new Date())
+  const dayOfMonth = now.getDate()
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const daysLeft = daysInMonth - dayOfMonth
+  const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(now)
+
+  async function submit(event) {
+    event.preventDefault()
+    const dollarsValue = Number(value)
+    if (value.trim() === '' || !Number.isFinite(dollarsValue) || dollarsValue < 0 || dollarsValue > 1_000_000) {
+      setProblem('Enter an amount between $0 and $1,000,000.')
+      return
+    }
+    setSaving(true)
+    setProblem('')
+    try {
+      await budget.save(Math.round(dollarsValue * 100))
+      setEditing(false)
+    } catch {
+      setProblem('Couldn’t save your budget. Try again in a moment.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const hasBudget = budget.cents != null
+  const over = hasBudget && spentCents > budget.cents
+  const projected = dayOfMonth >= 7 && spentCents > 0 ? spentCents / dayOfMonth * daysInMonth : null
+  const headingOver = hasBudget && !over && projected !== null && projected > budget.cents
+
+  return (
+    <section className="panel budget-panel" aria-labelledby="budget-title">
+      <div className="row-between">
+        <h2 className="h-small" id="budget-title">{monthLabel} budget</h2>
+        {hasBudget && !editing && <button className="link-button" type="button" onClick={() => { setValue(String(budget.cents / 100)); setEditing(true) }}>Change</button>}
+      </div>
+      {hasBudget && !editing && (
+        <>
+          <p className="budget-figure"><strong>{dollars.format(spentCents / 100)}</strong> <span className="muted">of {dollars.format(budget.cents / 100)}</span></p>
+          <div className="bar-track" role="img" aria-label={`${Math.min(100, Math.round(spentCents / Math.max(1, budget.cents) * 100))}% of the budget spent`}>
+            <div className={over ? 'bar-fill is-over' : 'bar-fill'} style={{ width: Math.min(100, spentCents / Math.max(1, budget.cents) * 100) + '%' }} />
+          </div>
+          <p className="small">
+            {over
+              ? <><span className="chip chip-up">Over budget</span> {dollars.format((spentCents - budget.cents) / 100)} over with {daysLeft === 1 ? '1 day' : daysLeft + ' days'} to go.</>
+              : <>{dollars.format((budget.cents - spentCents) / 100)} left, {daysLeft === 1 ? '1 day' : daysLeft + ' days'} to go.</>}
+          </p>
+          {projected !== null && !over && (
+            <p className="small muted">
+              At this pace you’ll spend about {dollars.format(projected / 100)} this month.{' '}
+              {headingOver && <span className="chip chip-up">Heading over</span>}
+            </p>
+          )}
+        </>
+      )}
+      {editing && (
+        <form className="stack-sm" onSubmit={submit}>
+          {!hasBudget && <p className="muted small">Set a monthly grocery budget and see how you’re tracking, with a warning if you’re heading over.</p>}
+          <label className="field">Monthly budget ($)
+            <input type="number" inputMode="decimal" min="0" step="1" value={value} onChange={(event) => setValue(event.target.value)} placeholder="500" />
+          </label>
+          {problem && <p className="note note-warn" role="alert">{problem}</p>}
+          <div className="button-row">
+            <button className="btn btn-primary" type="submit" disabled={saving}>{hasBudget ? 'Update budget' : 'Set budget'}</button>
+            {hasBudget && <button className="btn btn-tertiary" type="button" onClick={() => { setEditing(false); setProblem('') }}>Cancel</button>}
+          </div>
+        </form>
+      )}
+    </section>
+  )
+}
+
+export default function Overview({ receipts, rules, loaded, error, budget, onScan, onOpenReceipt, onOpenView }) {
   if (error) return <p className="note note-warn" role="alert">{error}</p>
 
   if (!loaded) {
@@ -120,6 +203,9 @@ export default function Overview({ receipts, rules, loaded, error, onScan, onOpe
   const max = Math.max(1, ...days.map((day) => day.cents))
   const latest = withItems[0]
   const insights = buildInsights(withItems, rules)
+  const unlock = unlockStatus(withItems)
+  const savings = savingsEstimate(withItems)
+  const monthSpent = thisMonthCents(withItems)
   const middle = days[Math.floor(DAYS / 2)].date
 
   return (
@@ -164,21 +250,53 @@ export default function Overview({ receipts, rules, loaded, error, onScan, onOpe
 
       <section className="split">
         <div className="split-main stack-xl">
-          {insights.length > 0 && (
+          {(insights.length > 0 || !unlock.ready) && (
             <section aria-labelledby="changed-title">
               <h2 className="h-section" id="changed-title">What changed</h2>
               <p className="muted spaced-bottom">The last 30 days, compared with the 30 days before and with your usual month.</p>
+              {insights.length > 0 && (
+                <ul className="insight-list">
+                  {insights.map((row) => (
+                    <li key={row.id}>
+                      <div>
+                        <div className="strong">{row.text}</div>
+                        <div className="muted small">{row.detail}</div>
+                      </div>
+                      <span className={'chip chip-' + row.chip.tone}>{row.chip.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!unlock.ready && (
+                <div className="unlock">
+                  <div className="row-between">
+                    <strong>Unlock your usual-month comparisons</strong>
+                    <span className="muted small">{unlock.days} of {unlock.needed} days</span>
+                  </div>
+                  <div className="bar-track" role="img" aria-label={`${unlock.days} of ${unlock.needed} days of history`}>
+                    <div className="bar-fill" style={{ width: Math.max(3, unlock.days / unlock.needed * 100) + '%' }} />
+                  </div>
+                  <p className="muted small">CartTrail needs about two months of receipts to know what’s normal for you. Scan older receipts to get there sooner.</p>
+                </div>
+              )}
+            </section>
+          )}
+          {savings && (
+            <section aria-labelledby="savings-title">
+              <h2 className="h-section" id="savings-title">Savings finder</h2>
+              <p className="muted spaced-bottom">Buying these at the cheaper store could have saved about {dollars.format(savings.perMonthCents / 100)} a month over the last 3 months.</p>
               <ul className="insight-list">
-                {insights.map((row) => (
-                  <li key={row.id}>
+                {savings.rows.map((row) => (
+                  <li key={row.key}>
                     <div>
-                      <div className="strong">{row.text}</div>
-                      <div className="muted small">{row.detail}</div>
+                      <div className="strong">{row.name}</div>
+                      <div className="muted small">{row.cheapest.name} {dollars.format(row.cheapest.price / 100)} a unit, against {row.priciest.name} {dollars.format(row.priciest.price / 100)}.</div>
                     </div>
-                    <span className={'chip chip-' + row.chip.tone}>{row.chip.label}</span>
+                    <span className="chip chip-down">Save {dollars.format(row.saving / 100)}</span>
                   </li>
                 ))}
               </ul>
+              <p className="muted small spaced">Per-unit prices from your own receipts. Check package sizes before you switch.</p>
             </section>
           )}
           <section>
@@ -204,12 +322,15 @@ export default function Overview({ receipts, rules, loaded, error, onScan, onOpe
           </section>
         </div>
 
-        <div className="split-side">
+        <div className="split-side stack-lg">
+          {budget && <BudgetPanel key={budget.cents ?? 'none'} budget={budget} spentCents={monthSpent} />}
+          <div>
           <h2 className="h-section">Where it went</h2>
           {categories.length === 0
             ? <p className="muted">Nothing in the last 30 days.</p>
             : <CategoryBars categories={categories} />}
           <button className="link-button spaced" type="button" onClick={() => onOpenView('trends')}>Open trends</button>
+          </div>
         </div>
       </section>
     </div>

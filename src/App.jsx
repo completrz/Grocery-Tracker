@@ -7,6 +7,7 @@ import SignIn from './SignIn'
 import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
 import { dollars, formatDate, formatShortDate, receiptLines, receiptTotal } from './format'
 import { Icon, Logo, ReceiptPaper } from './ui'
+import { receiptImpact } from './insights'
 import { makeSampleReceipts } from './sampleData'
 import { supabase } from './supabase'
 
@@ -45,11 +46,11 @@ export default function App() {
     )
   }
   return session
-    ? <Tracker key={session.user.id} email={session.user.email} />
+    ? <Tracker key={session.user.id} email={session.user.email} userId={session.user.id} />
     : <SignIn />
 }
 
-function Tracker({ email }) {
+function Tracker({ email, userId }) {
   const [receipts, setReceipts] = useState([])
   const [locationsReady, setLocationsReady] = useState(false)
   const [branchesReady, setBranchesReady] = useState(false)
@@ -67,6 +68,11 @@ function Tracker({ email }) {
   const [saved, setSaved] = useState(false)
   const [selectedId, setSelectedId] = useState('')
   const [sampleReceipts] = useState(() => makeSampleReceipts())
+  const [queue, setQueue] = useState([])
+  const [skippedNote, setSkippedNote] = useState('')
+  const [impact, setImpact] = useState([])
+  const [budgetReady, setBudgetReady] = useState(false)
+  const [budgetCents, setBudgetCents] = useState(null)
   const [branchSkipped, setBranchSkipped] = useState(false)
   const [branchSearchOpen, setBranchSearchOpen] = useState(false)
   const [historyError, setHistoryError] = useState('')
@@ -77,7 +83,8 @@ function Tracker({ email }) {
   const [busy, setBusy] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const [search, setSearch] = useState('')
-  const [view, setView] = useState('overview')
+  // The installed app's "Scan a receipt" shortcut opens /?scan=1 straight to the capture screen.
+  const [view, setView] = useState(() => new URLSearchParams(window.location.search).has('scan') ? 'capture' : 'overview')
   const [previewUrl, setPreviewUrl] = useState('')
 
   const setMessage = (text, tone = 'info') => setNotice({ text, tone })
@@ -93,6 +100,7 @@ function Tracker({ email }) {
       const branchResult = await supabase.from('store_branches')
         .select('id, store, address, source_address, latitude, longitude')
       const rules = await supabase.from('receipt_category_rules').select('store_key, item_key, category')
+      const budget = await supabase.from('grocery_budgets').select('monthly_cents').maybeSingle()
       const hasCategories = !rules.error
       const columns = 'id, item_name, quantity, line_total_cents' + (hasCategories ? ', category' : '')
       const fields = 'id, store, purchased_on, receipt_items(' + columns + ')' + (!branchResult.error ? ', store_branch_id' : '')
@@ -105,6 +113,8 @@ function Tracker({ email }) {
 
       if (!active) return
       setLoaded(true)
+      setBudgetReady(!budget.error)
+      setBudgetCents(budget.data?.monthly_cents ?? null)
       setLocationsReady(!missingLocationColumns && !error)
       setBranchesReady(!branchResult.error)
       setBranches(branchResult.data ?? [])
@@ -181,18 +191,16 @@ function Tracker({ email }) {
     }
   }
 
-  async function scanReceipt(event) {
-    const file = event.currentTarget.files?.[0]
+  function scanReceipt(event) {
+    const files = [...(event.currentTarget.files ?? [])]
     event.currentTarget.value = ''
-    if (!file) return
+    if (files.length === 0) return
 
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      setMessage('Choose a JPEG or PNG photo of the receipt.', 'error')
-      return
-    }
-
-    if (file.size === 0 || file.size > 4_000_000) {
-      setMessage('That photo is over 4 MB. Choose a smaller JPEG or PNG.', 'error')
+    const valid = files.filter((file) => ['image/jpeg', 'image/png'].includes(file.type) && file.size > 0 && file.size <= 4_000_000)
+    if (valid.length === 0) {
+      setMessage(files.length === 1 && files[0].size > 4_000_000
+        ? 'That photo is over 4 MB. Choose a smaller JPEG or PNG.'
+        : 'Choose a JPEG or PNG photo of the receipt, under 4 MB.', 'error')
       return
     }
 
@@ -201,6 +209,24 @@ function Tracker({ email }) {
       return
     }
 
+    const [first, ...rest] = valid
+    setQueue(receiptId ? [] : rest)
+    setSkippedNote(files.length > valid.length
+      ? `Skipped ${files.length - valid.length === 1 ? '1 file' : (files.length - valid.length) + ' files'} that weren’t a JPEG or PNG under 4 MB.`
+      : '')
+    scanFile(first)
+  }
+
+  function scanNext() {
+    const [next, ...rest] = queue
+    if (!next) return
+    setQueue(rest)
+    setSaved(false)
+    scanFile(next)
+  }
+
+  async function scanFile(file) {
+    setImpact([])
     setBusy(true)
     setSaved(false)
     setBranchSkipped(false)
@@ -347,6 +373,7 @@ function Tracker({ email }) {
 
       if (error) throw error
 
+      setImpact(receiptId ? [] : receiptImpact({ store: store.trim(), date, items: rows }, receipts))
       setSaved(true)
       setMessage('')
       setItems([blankItem()])
@@ -392,6 +419,39 @@ function Tracker({ email }) {
   )
   const subtotalMatches = missingPrices === 0 && enteredCents === subtotalCents
 
+  async function saveBudget(cents) {
+    const { error } = await supabase.from('grocery_budgets')
+      .upsert({ user_id: userId, monthly_cents: cents }, { onConflict: 'user_id' })
+    if (error) throw error
+    setBudgetCents(cents)
+  }
+
+  // Text cells that start with a formula character are prefixed so spreadsheets don't run them.
+  const csvText = (value) => {
+    let text = String(value ?? '')
+    if (/^[=+\-@\t\r]/.test(text)) text = "'" + text
+    return /[",\n\r]/.test(text) ? '"' + text.replaceAll('"', '""') + '"' : text
+  }
+
+  function exportCsv() {
+    const lines = [['date', 'store', 'item', 'quantity', 'line_total', 'category'].join(',')]
+    for (const receipt of receipts) {
+      for (const item of receipt.receipt_items) {
+        lines.push([
+          receipt.purchased_on, csvText(receipt.store), csvText(item.item_name), item.quantity,
+          (item.line_total_cents / 100).toFixed(2),
+          csvText(resolveCategory(categoryRules, receipt.store, item.item_name, item.category)),
+        ].join(','))
+      }
+    }
+    const url = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `carttrail-receipts-${todayForDateInput()}.csv`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
   function openView(nextView) {
     setView(nextView)
     window.scrollTo(0, 0)
@@ -408,6 +468,9 @@ function Tracker({ email }) {
   }
 
   function discardScan() {
+    setQueue([])
+    setSkippedNote('')
+    setImpact([])
     setItems([blankItem()])
     setStore('')
     setDate(todayForDateInput())
@@ -429,6 +492,7 @@ function Tracker({ email }) {
   const scanned = Boolean(previewUrl)
   const selectedReceipt = shown.find((receipt) => receipt.id === selectedId)
   const diffCents = subtotalCents === null ? 0 : enteredCents - subtotalCents
+  const quickSave = scanned && !receiptId && subtotalCents !== null && subtotalMatches && Boolean(store.trim()) && Boolean(date)
   const navItems = [['overview', 'Overview'], ['receipts', 'Receipts'], ['trends', 'Trends']]
 
   return (
@@ -471,6 +535,7 @@ function Tracker({ email }) {
         <div className="view" key={view}>
         {view === 'overview' && (
           <Overview receipts={shown} rules={categoryRules} loaded={loaded} error={historyError}
+            budget={sampleMode || !budgetReady ? null : { cents: budgetCents, save: saveBudget }}
             onScan={startScan} onOpenReceipt={openReceipt} onOpenView={openView} />
         )}
 
@@ -485,10 +550,15 @@ function Tracker({ email }) {
                 <h1 className="h-page">Receipts</h1>
                 <p className="lede">Find past purchases by store, item, or date.</p>
               </div>
-              <label className="field field-inline">Search receipts
-                <input type="search" placeholder="Store, item, or date" value={search}
-                  onChange={(event) => setSearch(event.target.value)} />
-              </label>
+              <div className="toolbar">
+                <label className="field field-inline">Search receipts
+                  <input type="search" placeholder="Store, item, or date" value={search}
+                    onChange={(event) => setSearch(event.target.value)} />
+                </label>
+                {!sampleMode && receipts.length > 0 && (
+                  <button className="btn btn-secondary" type="button" onClick={exportCsv}>Export CSV</button>
+                )}
+              </div>
             </div>
 
             {historyError && <p className="note note-warn" role="alert">{historyError}</p>}
@@ -571,17 +641,19 @@ function Tracker({ email }) {
           <form className="stack-xl" onSubmit={saveReceipt}>
             <div className="page-title-row">
               <div>
-                <h1 className="h-page">{scanned ? 'Check the scan' : 'Scan a receipt'}</h1>
-                <p className="lede">{scanned
-                  ? 'Compare each line with your photo. Fix anything the scanner misread, then save.'
-                  : 'Upload a photo to read it automatically, or type the items in by hand.'}</p>
+                <h1 className="h-page">{saved ? 'Saved' : scanned ? 'Check the scan' : 'Scan a receipt'}</h1>
+                <p className="lede">{saved
+                  ? (impact.length > 0 ? 'Here’s what this receipt changed.' : 'Your history is up to date.')
+                  : scanned
+                    ? 'Compare each line with your photo. Fix anything the scanner misread, then save.'
+                    : 'Upload a photo to read it automatically, or type the items in by hand.'}</p>
               </div>
-              {(scanned || items.some((item) => item.name || item.total)) && (
+              {!saved && (scanned || items.some((item) => item.name || item.total)) && (
                 <button className="link-button" type="button" disabled={busy} onClick={discardScan}>Discard scan</button>
               )}
             </div>
 
-            <fieldset className="plain-fieldset" disabled={busy}>
+            <fieldset className={saved ? 'plain-fieldset is-saved' : 'plain-fieldset'} disabled={busy}>
               <div className="split split-top">
                 <section className="split-side stack-sm" aria-label="Your receipt photo">
                   {scanned && (
@@ -597,6 +669,12 @@ function Tracker({ email }) {
                       ? 'Scan another photo'
                       : <><Icon name="scan" size={28} /><span className="strong">Choose a receipt photo</span><span className="small muted">JPEG or PNG, up to 4 MB. Photos are sent to Azure to be read.</span></>}
                   </label>
+                  {!scanned && !receiptId && (
+                    <label className="link-button">
+                      <input className="visually-hidden" type="file" accept="image/jpeg,image/png" multiple onChange={scanReceipt} />
+                      Or choose several photos from your library
+                    </label>
+                  )}
                   {scanText && (
                     <details className="disclosure">
                       <summary>Show the text the scanner read</summary>
@@ -606,6 +684,10 @@ function Tracker({ email }) {
                 </section>
 
                 <section className="split-main stack-lg" aria-label="Scanned details">
+                  {skippedNote && <p className="note" role="status">{skippedNote}</p>}
+                  {queue.length > 0 && !saved && (
+                    <p className="note" role="status">{queue.length === 1 ? '1 more photo is' : queue.length + ' more photos are'} queued. Save this receipt to review the next one.</p>
+                  )}
                   {notice.text && (
                     <p className={notice.tone === 'error' ? 'note note-warn' : 'note'} role="status" aria-busy={busy}>{notice.text}</p>
                   )}
@@ -632,7 +714,8 @@ function Tracker({ email }) {
                     </div>
                   )}
 
-                  <div>
+                  <details className="items-review" key={quickSave ? 'quick' : 'edit'} open={!quickSave}>
+                    <summary className="items-summary" hidden={!quickSave}>Review the {enteredItems.length === 1 ? '1 item' : enteredItems.length + ' items'}, {dollars.format(enteredCents / 100)}</summary>
                     <div className="table-panel table-panel-flush">
                       <table className="items-table">
                         <thead>
@@ -675,7 +758,7 @@ function Tracker({ email }) {
                       </div>
                     </div>
                     {categoryReady && <p className="muted small spaced">Leave a category blank to use the suggestion. A category you enter is remembered for this store and item name.</p>}
-                  </div>
+                  </details>
 
                   {!receiptId && subtotalCents !== null && (
                     missingPrices > 0 ? (
@@ -691,7 +774,7 @@ function Tracker({ email }) {
                         <Icon name="check" size={22} strokeWidth={2.4} />
                         <div>
                           <div className="banner-title">Your items add up to {dollars.format(enteredCents / 100)}, matching the printed subtotal.</div>
-                          <div>Ready to save.</div>
+                          <div>{quickSave ? 'Looks right. Save it, or open the items above to double-check.' : 'Ready to save.'}</div>
                         </div>
                       </div>
                     ) : (
@@ -803,13 +886,41 @@ function Tracker({ email }) {
                   <div className="save-row">
                     {saved ? (
                       <div className="save-done" role="status">
-                        <span className="status-pill"><Icon name="check" size={20} strokeWidth={2.4} /> {receiptId ? 'Items saved' : 'Receipt saved'}</span>
-                        <button className="link-button" type="button" onClick={() => openView('overview')}>Back to overview</button>
+                        <div className="save-done-row">
+                          <span className="status-pill"><Icon name="check" size={20} strokeWidth={2.4} /> {receiptId ? 'Items saved' : 'Receipt saved'}</span>
+                          <button className="link-button" type="button" onClick={() => openView('overview')}>Back to overview</button>
+                        </div>
+                        {impact.length > 0 && (
+                          <section aria-labelledby="impact-title">
+                            <h2 className="h-small spaced-bottom" id="impact-title">What this receipt changed</h2>
+                            <ul className="insight-list">
+                              {impact.map((row) => (
+                                <li key={row.id}>
+                                  <div>
+                                    <div className="strong">{row.text}</div>
+                                    <div className="muted small">{row.detail}</div>
+                                  </div>
+                                  <span className={'chip chip-' + row.chip.tone}>{row.chip.label}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        )}
+                        {queue.length > 0 ? (
+                          <div><button className="btn btn-primary btn-large" type="button" onClick={scanNext}>Review the next receipt ({queue.length} waiting)</button></div>
+                        ) : (
+                          <div>
+                            <label className="btn btn-secondary">
+                              <input className="visually-hidden" type="file" accept="image/jpeg,image/png" capture="environment" onChange={scanReceipt} />
+                              Scan another receipt
+                            </label>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <button className="btn btn-primary btn-large" type="submit">{receiptId ? 'Save items' : 'Save receipt'}</button>
+                      <button className="btn btn-primary btn-large" type="submit">{quickSave ? 'Looks right, save receipt' : receiptId ? 'Save items' : 'Save receipt'}</button>
                     )}
-                    <span className="small muted">{enteredItems.length === 1 ? '1 item' : `${enteredItems.length} items`}, {dollars.format(enteredCents / 100)}</span>
+                    {!saved && <span className="small muted">{enteredItems.length === 1 ? '1 item' : `${enteredItems.length} items`}, {dollars.format(enteredCents / 100)}</span>}
                   </div>
                 </section>
               </div>
