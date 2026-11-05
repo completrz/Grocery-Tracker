@@ -317,3 +317,39 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Motion ----------------------------------------------------------------
+   Quiet and purposeful: state changes and first paint only, nothing tied to
+   scrolling. All of it is switched off by the prefers-reduced-motion rule above. */
+.btn, .main-nav button, .link-button, .icon-button, .segmented button, .bar-button, .shop-button, .upload {
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .1s ease;
+}
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.field input, .field select, .cell-input { transition: border-color .15s ease, box-shadow .15s ease; }
+.field input:focus, .field select:focus, .cell-input:focus { border-color: var(--accent); }
+
+@keyframes view-in { from { opacity: 0; transform: translateY(6px); } }
+.view { animation: view-in .22s ease-out; }
+
+@keyframes grow-y { from { transform: scaleY(0); } }
+@keyframes grow-x { from { transform: scaleX(0); } }
+.day-bar.has-spend, .month-bar { transform-origin: bottom; animation: grow-y .5s cubic-bezier(.2, .7, .2, 1) backwards; animation-delay: calc(var(--i, 0) * 18ms); }
+.bar-fill { transform-origin: left; animation: grow-x .6s cubic-bezier(.2, .7, .2, 1) backwards; }
+
+/* The receipt prints from the top, then the torn edge settles. */
+@keyframes print-in { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 -20px 0); } }
+.receipt-paper:not(.photo-paper):not(.receipt-tilted) { animation: print-in .7s cubic-bezier(.3, .6, .2, 1) backwards; }
+
+@keyframes banner-in { from { opacity: 0; transform: translateY(-4px); } }
+.banner, .note { animation: banner-in .22s ease-out; }
+
+@keyframes pop { 0% { transform: scale(.92); opacity: 0; } 60% { transform: scale(1.03); } 100% { transform: scale(1); opacity: 1; } }
+.status-pill { animation: pop .35s ease-out; }
+.status-pill svg path { stroke-dasharray: 24; animation: draw-check .35s .15s ease-out backwards; }
+@keyframes draw-check { from { stroke-dashoffset: 24; } }
+
+@keyframes pulse { 50% { opacity: .55; } }
+.skeleton { animation: pulse 1.4s ease-in-out infinite; }
+
+@keyframes tilt-in { from { opacity: 0; transform: translateY(24px) rotate(-6deg); } }
+.receipt-tilted { animation: tilt-in .7s cubic-bezier(.2, .7, .2, 1) backwards; }

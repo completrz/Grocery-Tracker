@@ -453,6 +453,7 @@ function Tracker({ email }) {
         )}
         {categoryError && <p className="note note-warn" role="status">{categoryError}</p>}
 
+        <div className="view" key={view}>
         {view === 'overview' && (
           <Overview receipts={receipts} rules={categoryRules} loaded={loaded} error={historyError}
             onScan={startScan} onOpenReceipt={openReceipt} onOpenView={openView} />
@@ -801,6 +802,7 @@ function Tracker({ email }) {
             </fieldset>
           </form>
         )}
+        </div>
       </main>
     </div>
   )

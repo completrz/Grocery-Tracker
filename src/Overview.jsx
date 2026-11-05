@@ -104,11 +104,11 @@ export default function Overview({ receipts, rules, loaded, error, onScan, onOpe
             <figcaption>Spending by day</figcaption>
             <div className="day-bars" role="img"
               aria-label={`Spending by day for the last 30 days: ${dollars.format(cents / 100)} across ${plural(trips, 'trip')}.`}>
-              {days.map((day) => (
+              {days.map((day, index) => (
                 <div key={day.key}
                   title={shortDateLabel.format(day.date) + ': ' + (day.cents ? dollars.format(day.cents / 100) : 'no receipts')}
                   className={day.cents > 0 ? 'day-bar has-spend' : 'day-bar'}
-                  style={day.cents > 0 ? { height: Math.max(6, Math.round(day.cents / max * 128)) } : undefined} />
+                  style={day.cents > 0 ? { height: Math.max(6, Math.round(day.cents / max * 128)), '--i': index } : undefined} />
               ))}
             </div>
             <div className="day-axis"><span>{shortDateLabel.format(days[0].date)}</span><span>{shortDateLabel.format(middle)}</span><span>Today</span></div>
