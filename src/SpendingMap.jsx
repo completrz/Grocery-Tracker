@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import PlaceSearch from './PlaceSearch'
+import { GhostBars } from './ui'
 import 'leaflet/dist/leaflet.css'
 
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
@@ -33,8 +34,8 @@ export default function SpendingMap({ receipts, onSave, onHide }) {
   const [pinOpen, setPinOpen] = useState(false)
   const groups = useMemo(() => groupLocations(receipts), [receipts])
   const receipt = receipts.find((entry) => entry.id === receiptId) ?? receipts.find((entry) => !hasPoint(entry)) ?? receipts[0]
-  const lat = draft?.id === receipt?.id ? draft.lat : receipt?.latitude ?? ''
-  const lng = draft?.id === receipt?.id ? draft.lng : receipt?.longitude ?? ''
+  const lat = draft && draft.id === receipt?.id ? draft.lat : receipt?.latitude ?? ''
+  const lng = draft && draft.id === receipt?.id ? draft.lng : receipt?.longitude ?? ''
 
   useEffect(() => {
     const instance = L.map(node.current, { scrollWheelZoom: false, maxZoom: 19 }).setView([39, -98], 4)
@@ -133,7 +134,12 @@ export default function SpendingMap({ receipts, onSave, onHide }) {
           </div>
           <p className="muted small">{mapped} of {receipts.length} receipts in these filters are pinned. The basemap comes from OpenStreetMap.</p>
           {tileError && <p className="note note-warn" role="status">Some map tiles didn’t load. Your pinned branches are still listed here.</p>}
-          {groups.length === 0 && <p className="muted">No pinned branches for these filters yet.</p>}
+          {groups.length === 0 && (
+            <>
+              <GhostBars count={3} />
+              <p className="muted">No pinned branches for these filters yet. Pin a receipt to a branch and it will show up here and on the map.</p>
+            </>
+          )}
           {groups.length > 0 && (
             <ul className="shop-list">
               {groups.map((group) => (

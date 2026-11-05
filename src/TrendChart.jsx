@@ -21,7 +21,7 @@ function scale(values, line) {
   return Array.from({ length: Math.round((top - bottom) / step) + 1 }, (_, index) => bottom + step * index)
 }
 
-export default function TrendChart({ points, label, line = false }) {
+export default function TrendChart({ points, label, line = false, emptyText = 'No data for these filters.' }) {
   const host = useRef(null)
   const [width, setWidth] = useState(520)
   const [hover, setHover] = useState(null)
@@ -50,7 +50,15 @@ export default function TrendChart({ points, label, line = false }) {
 
   return (
     <div className="interactive-chart" ref={host}>
-      {!selected ? <p className="empty">No data for these filters.</p> : (
+      {!selected ? (
+        <div className="ghost-chart">
+          <svg viewBox="0 0 520 160" preserveAspectRatio="none" aria-hidden="true">
+            {[16, 56, 96, 136].map((y) => <line key={y} x1="0" x2="520" y1={y} y2={y} className="chart-grid" />)}
+            {line && <path d="M20 120 C120 110 160 70 260 80 S420 40 500 36" className="ghost-line" />}
+          </svg>
+          <p className="muted small">{emptyText}</p>
+        </div>
+      ) : (
         <>
           <div className="chart-inspector" aria-live="polite">
             <div><span>{fullMonth.format(monthDate(selected.month))}</span>

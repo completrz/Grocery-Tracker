@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { normalizeLabel, resolveCategory } from './categories'
 import TrendChart from './TrendChart'
-import { Icon } from './ui'
+import { GhostBars, GhostRows, Icon } from './ui'
 
 const SpendingMap = lazy(() => import('./SpendingMap'))
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
@@ -194,7 +194,21 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
           <h2 className="h-section" id="price-watch-title">Price watch</h2>
           <p className="muted spaced-bottom">What you paid per unit, compared with three months ago.</p>
           {watch.rows.length === 0 ? (
-            <p className="muted">Nothing to compare yet. A product needs a purchase in {longMonthName.format(new Date(watch.thenMonth + '-01T00:00:00Z'))} and a later one.</p>
+            <>
+              <div className="table-panel">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Product</th><th scope="col" className="num">Now</th>
+                      <th scope="col" className="num">{longMonthName.format(new Date(watch.thenMonth + '-01T00:00:00Z'))}</th>
+                      <th scope="col" className="num">Change</th>
+                    </tr>
+                  </thead>
+                  <tbody><GhostRows columns={4} rows={3} /></tbody>
+                </table>
+              </div>
+              <p className="muted small spaced">Nothing to compare yet. A product needs a purchase in {longMonthName.format(new Date(watch.thenMonth + '-01T00:00:00Z'))} and a later one. Keep saving receipts and it will appear here.</p>
+            </>
           ) : (
             <div className="table-panel">
               <table>
@@ -230,7 +244,12 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
             <h2 className="h-section" id="category-title">By category</h2>
             <p className="muted spaced-bottom">{periodName} at {storeName ?? 'all stores'}</p>
           </div>
-          {typeChoices.length === 0 && <p className="muted">No categories for these filters.</p>}
+          {typeChoices.length === 0 && (
+            <>
+              <GhostBars count={4} />
+              <p className="muted small">No categories for these filters. They appear as you save receipts.</p>
+            </>
+          )}
           <ul className="bar-list">
             {typeChoices.map(([key, item]) => (
               <li key={key}>
@@ -253,7 +272,8 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
               {productChoices.map(([key, item]) => <option value={key} key={key}>{item.name}</option>)}
             </select>
           </label>}
-          <TrendChart key={activeProduct} points={product ? chartPoints(product.months, true) : []} label="Product price chart" line />
+          <TrendChart key={activeProduct} points={product ? chartPoints(product.months, true) : []} label="Product price chart" line
+            emptyText="Save a few receipts with the same product and its price over time will show here." />
           {product?.months.size === 1 && <p className="muted small">One month so far. Save another purchase to see how the price changes.</p>}
         </section>
 
@@ -265,7 +285,8 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
               {typeChoices.map(([key, item]) => <option value={key} key={key}>{item.name}</option>)}
             </select>
           </label>}
-          <TrendChart key={activeType} points={type ? chartPoints(type.months) : []} label="Category spending chart" />
+          <TrendChart key={activeType} points={type ? chartPoints(type.months) : []} label="Category spending chart"
+            emptyText="Save a receipt and each category’s monthly spending will show here." />
         </section>
       </div>
 

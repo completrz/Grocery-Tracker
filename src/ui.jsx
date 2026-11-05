@@ -75,3 +75,28 @@ export function CategoryBars({ categories }) {
   )
 }
 
+
+// Placeholder shapes for panels with nothing to show yet. They hold the layout open
+// and never contain numbers, so nothing here can be mistaken for real data.
+export function GhostBars({ count = 4 }) {
+  return (
+    <ul className="bar-list ghost" aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => (
+        <li key={index}>
+          <div className="bar-label"><span className="ghost-text" style={{ width: 90 - index * 12 }} /><span className="ghost-text" style={{ width: 44 }} /></div>
+          <div className="bar-track" />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+export function GhostRows({ columns, rows = 3 }) {
+  return Array.from({ length: rows }, (_, row) => (
+    <tr key={row} className="ghost" aria-hidden="true">
+      {Array.from({ length: columns }, (_, col) => (
+        <td key={col} className={col === 0 ? undefined : 'num'}><span className="ghost-text" style={{ width: col === 0 ? 120 - row * 14 : 48 }} /></td>
+      ))}
+    </tr>
+  ))
+}
