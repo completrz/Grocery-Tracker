@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { normalizeLabel, resolveCategory } from './categories'
 import TrendChart from './TrendChart'
+import { crossStorePrices, storeStats } from './insights'
 import { GhostBars, GhostRows, Icon } from './ui'
 
 const SpendingMap = lazy(() => import('./SpendingMap'))
@@ -95,12 +96,13 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
   const product = products.get(activeProduct)
   const type = types.get(activeType)
   const maxCategory = Math.max(1, ...typeChoices.map(([, item]) => Math.abs(item.cents)))
-  const storeSpend = new Map()
-  for (const receipt of filtered) {
-    add(storeSpend, normalizeLabel(receipt.store), receipt.receipt_items.reduce((sum, item) => sum + item.line_total_cents, 0))
-  }
-  const rankedStores = [...storeSpend].sort(([, a], [, b]) => b.cents - a.cents)
-  const maxStore = Math.max(1, ...rankedStores.map(([, row]) => Math.abs(row.cents)))
+  // Store comparisons ignore the store filter (so the stores stay comparable) but follow the period filter.
+  const periodReceipts = useMemo(() => receipts.filter((receipt) => !period.value || (
+    receipt.purchased_on.slice(0, 7) >= period.from && receipt.purchased_on.slice(0, 7) <= period.through
+  )), [receipts, period])
+  const stats = useMemo(() => storeStats(periodReceipts), [periodReceipts])
+  const crossPrices = useMemo(() => crossStorePrices(periodReceipts), [periodReceipts])
+  const highestAverage = stats.length > 1 ? stats.reduce((best, row) => row.average > best.average ? row : best) : null
 
   // Price watch compares against three months ago, so it ignores the period filter (the store filter still applies).
   const storeReceipts = useMemo(() => store ? receipts.filter((receipt) => normalizeLabel(receipt.store) === store) : receipts, [receipts, store])
@@ -263,6 +265,70 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
         </section>
       </div>
 
+      <section className="stack" aria-labelledby="stores-title">
+        <div>
+          <h2 className="h-section" id="stores-title">Compare your stores</h2>
+          <p className="muted">{periodName}. Select a store to filter everything on this page to it.</p>
+        </div>
+        {stats.length === 0 ? <p className="muted">No receipts in this period yet.</p> : (
+          <div className="table-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Store</th><th scope="col" className="num">Trips</th><th scope="col" className="num">Average per trip</th>
+                  <th scope="col" className="num">Total</th><th scope="col" className="num">Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.map((row) => (
+                  <tr key={row.key} className={store === row.key ? 'row-selected' : undefined}>
+                    <td className="strong">
+                      <button className="link-button link-ink" type="button" aria-pressed={store === row.key}
+                        onClick={() => setStore(store === row.key ? '' : row.key)}>{row.name}</button>
+                      {highestAverage?.key === row.key && <span className="chip chip-up chip-inline">Highest per trip</span>}
+                    </td>
+                    <td className="num muted">{row.trips}</td>
+                    <td className="num">{money.format(row.average / 100)}</td>
+                    <td className="num strong">{money.format(row.cents / 100)}</td>
+                    <td className="num muted">{Math.round(row.share * 100)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div>
+          <h3 className="h-small">Same item, different store</h3>
+          <p className="muted small spaced-bottom">Per-unit prices for items with the same name at more than one store. Check package sizes before you switch.</p>
+          {crossPrices.length === 0 ? (
+            <p className="muted">Buy the same item at two stores and the prices will be compared here.</p>
+          ) : (
+            <div className="table-panel">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Item</th><th scope="col">Cheapest at</th><th scope="col">Costs more at</th>
+                    <th scope="col" className="num">Difference</th><th scope="col" className="num">Extra paid in this period</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {crossPrices.map((row) => (
+                    <tr key={row.key}>
+                      <td className="strong">{row.name}</td>
+                      <td>{row.cheapest.name} <span className="muted">{money.format(row.cheapest.price / 100)}</span></td>
+                      <td>{row.priciest.name} <span className="muted">{money.format(row.priciest.price / 100)}</span></td>
+                      <td className="num"><span className="chip chip-up">{Math.round(row.gap * 100)}% more</span></td>
+                      <td className="num strong">{money.format(row.saving / 100)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
       <div className="split split-even">
         <section className="panel panel-xl" aria-labelledby="product-trend-title">
           <h2 className="h-small" id="product-trend-title">Price history</h2>
@@ -312,21 +378,6 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
           </div>
         )}
       </section>
-      {rankedStores.length > 1 && (
-        <section className="stack" aria-labelledby="stores-title">
-          <h2 className="h-section" id="stores-title">By store</h2>
-          <ul className="bar-list bar-list-wide">
-            {rankedStores.map(([key, item]) => (
-              <li key={key}>
-                <button className="bar-button" type="button" aria-pressed={store === key} onClick={() => setStore(store === key ? '' : key)}>
-                  <span className="bar-label"><span>{stores.find(([id]) => id === key)?.[1] ?? key}</span><strong>{money.format(item.cents / 100)}</strong></span>
-                  <span className="bar-track" aria-hidden="true"><span className="bar-fill" style={{ width: Math.max(2, Math.abs(item.cents) / maxStore * 100) + '%' }} /></span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   )
 }

@@ -14,13 +14,13 @@ const PLAN = [
   { ago: 2, store: 'heb', items: [['Bananas', 2.36, 127], ['Roma tomatoes', 1, 101], ['Jalapeno peppers', 1, 38], ['H-E-B bolillo 6ct', 1, 246]] },
   { ago: 6, store: 'tj', items: [['Whole milk', 1, 349], ['Large eggs', 1, 318], ['Chicken thighs', 1, 1450], ['Spinach', 1, 299], ['Cheddar cheese', 1, 499]] },
   { ago: 11, store: 'heb', items: [['Bananas', 1.8, 97], ['Ground beef', 1, 1189], ['Pasta', 2, 298], ['Whole milk', 1, 349], ['Apples', 3, 447]] },
-  { ago: 16, store: 'wf', items: [['Sourdough bread', 1, 689], ['Avocados', 4, 596], ['Salmon fillet', 1, 1840], ['Sparkling water', 1, 799]] },
+  { ago: 16, store: 'wf', items: [['Sourdough bread', 1, 689], ['Avocados', 4, 596], ['Salmon fillet', 1, 1840], ['Sparkling water', 1, 799], ['Whole milk', 1, 429]] },
   { ago: 21, store: 'costco', items: [['Rotisserie chicken', 1, 499], ['Paper towels', 1, 2299], ['Eggs', 1, 599], ['Butter', 1, 1099]] },
   { ago: 27, store: 'heb', items: [['Whole milk', 1, 339], ['Bananas', 2.1, 113], ['Tortillas', 1, 248], ['Black beans', 3, 327], ['Coffee', 1, 1099]] },
   { ago: 33, store: 'tj', items: [['Large eggs', 1, 329], ['Yogurt', 2, 458], ['Broccoli', 1, 249], ['Bacon', 1, 599], ['Rice', 1, 349]] },
-  { ago: 40, store: 'heb', items: [['Bananas', 1.5, 81], ['Chicken breast', 1, 1320], ['Onions', 2, 238], ['Whole milk', 1, 345], ['Cereal', 1, 479]] },
+  { ago: 40, store: 'heb', items: [['Bananas', 1.5, 81], ['Chicken breast', 1, 1320], ['Onions', 2, 238], ['Whole milk', 1, 345], ['Cereal', 1, 479], ['Large eggs', 1, 319]] },
   { ago: 47, store: 'wf', items: [['Sourdough bread', 1, 649], ['Berries', 2, 898], ['Shrimp', 1, 1599], ['Laundry detergent', 1, 1199]] },
-  { ago: 55, store: 'costco', items: [['Ground beef', 1, 2199], ['Eggs', 1, 579], ['Toilet paper', 1, 2699], ['Orange juice', 1, 749]] },
+  { ago: 55, store: 'costco', items: [['Ground beef', 2, 2199], ['Eggs', 1, 579], ['Toilet paper', 1, 2699], ['Orange juice', 1, 749]] },
   // Older months, placed by calendar month so "three months ago" always has data.
   { back: 2, day: 22, store: 'heb', items: [['Bananas', 2, 94], ['Whole milk', 1, 315], ['Pasta', 1, 149], ['Carrots', 2, 198], ['Cheddar cheese', 1, 449]] },
   { back: 3, day: 4, store: 'heb', items: [['Bananas', 2, 90], ['Whole milk', 1, 309], ['Tortillas', 1, 229], ['Chicken breast', 1, 1250]] },
@@ -30,7 +30,7 @@ const PLAN = [
   { back: 4, day: 25, store: 'wf', items: [['Salmon fillet', 1, 1790], ['Avocados', 3, 447], ['Sourdough bread', 1, 639], ['Coffee', 1, 1349]] },
   { back: 5, day: 6, store: 'tj', items: [['Whole milk', 1, 319], ['Large eggs', 1, 359], ['Chicken thighs', 1, 1350], ['Broccoli', 1, 229]] },
   { back: 5, day: 18, store: 'heb', items: [['Bananas', 1.9, 86], ['Whole milk', 1, 305], ['Onions', 2, 218], ['Cereal', 1, 459], ['Pork chops', 1, 1180]] },
-  { back: 5, day: 28, store: 'costco', items: [['Chicken breast', 1, 1899], ['Eggs', 1, 559], ['Toilet paper', 1, 2599]] },
+  { back: 5, day: 28, store: 'costco', items: [['Chicken breast', 1.5, 1899], ['Eggs', 1, 559], ['Toilet paper', 1, 2599]] },
 ]
 
 const pad = (value) => String(value).padStart(2, '0')

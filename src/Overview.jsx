@@ -1,4 +1,5 @@
 import { normalizeLabel, resolveCategory } from './categories'
+import { buildInsights } from './insights'
 import { dollars, formatDate, formatShortDate, localDayKey, plural, receiptLines, receiptTotal, shortDateLabel } from './format'
 import { CategoryBars, GhostBars, GhostReceipt, GhostRows, Icon, ReceiptPaper } from './ui'
 
@@ -118,6 +119,7 @@ export default function Overview({ receipts, rules, loaded, error, onScan, onOpe
   const { days, cents, previousCents, trips, stores, categories } = buildWindow(withItems, rules)
   const max = Math.max(1, ...days.map((day) => day.cents))
   const latest = withItems[0]
+  const insights = buildInsights(withItems, rules)
   const middle = days[Math.floor(DAYS / 2)].date
 
   return (
@@ -161,7 +163,25 @@ export default function Overview({ receipts, rules, loaded, error, onScan, onOpe
       </section>
 
       <section className="split">
-        <div className="split-main">
+        <div className="split-main stack-xl">
+          {insights.length > 0 && (
+            <section aria-labelledby="changed-title">
+              <h2 className="h-section" id="changed-title">What changed</h2>
+              <p className="muted spaced-bottom">The last 30 days, compared with the 30 days before and with your usual month.</p>
+              <ul className="insight-list">
+                {insights.map((row) => (
+                  <li key={row.id}>
+                    <div>
+                      <div className="strong">{row.text}</div>
+                      <div className="muted small">{row.detail}</div>
+                    </div>
+                    <span className={'chip chip-' + row.chip.tone}>{row.chip.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <section>
           <h2 className="h-section">Recent receipts</h2>
           <div className="table-panel">
             <table>
@@ -181,6 +201,7 @@ export default function Overview({ receipts, rules, loaded, error, onScan, onOpe
             </table>
           </div>
           <button className="link-button spaced" type="button" onClick={() => onOpenView('receipts')}>See all receipts</button>
+          </section>
         </div>
 
         <div className="split-side">
