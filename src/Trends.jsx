@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeLabel, resolveCategory } from './categories'
 import TrendChart from './TrendChart'
 import { crossStorePrices, storeStats } from './insights'
@@ -133,6 +133,12 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
   const allTimeSpan = Math.min(36, Math.max(6, (Number(nowKey.slice(0, 4)) - Number(earliest.slice(0, 4))) * 12 + Number(nowKey.slice(5, 7)) - Number(earliest.slice(5, 7)) + 1))
   const spanMonths = period.value ? Number(period.value) : allTimeSpan
   const slots = Array.from({ length: spanMonths }, (_, index) => shiftMonth(nowKey, index - spanMonths + 1))
+  // On a phone the chart is wider than its card and scrolls sideways. Start at the right so the latest months show.
+  const barsScroll = useRef(null)
+  useEffect(() => {
+    const node = barsScroll.current
+    if (node) node.scrollLeft = node.scrollWidth
+  }, [slots.length])
   const average = averageRows.length ? averageRows.reduce((sum, [, row]) => sum + row.cents, 0) / averageRows.length : 0
   const periodName = period.value ? 'Last ' + period.value + ' months' : 'All time'
 
@@ -164,7 +170,7 @@ export default function Trends({ receipts, rules, locationsReady, onSaveLocation
           <h2 className="h-section" id="spending-trend-title">Monthly spending</h2>
           {monthRows.length > 0 && <p className="muted">Average month: {wholeMoney.format(average / 100)} at {storeName ?? 'all stores'}</p>}
         </div>
-        <div className="scroll-x">
+        <div className="scroll-x" ref={barsScroll}>
           <ul className="month-bars" aria-label="Monthly spending">
             {slots.map((key, index) => {
               const row = months.get(key)
