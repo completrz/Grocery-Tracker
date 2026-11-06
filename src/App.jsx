@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import './styles/app.css'
 import Trends from './Trends'
 import PlaceSearch from './PlaceSearch'
@@ -11,11 +11,13 @@ import { Avatar, Icon, LoadingReceipt, Logo, ReceiptPaper } from './ui'
 import { greeting, primeAudio, printFeedback, receiptFooter, usePrefs } from './delight'
 import { receiptImpact } from './insights'
 import { makeSampleReceipts } from './sampleData'
-import { ACCEPT, MAX_BYTES, isReceiptFile, takeSharedFiles, withTimeout } from './shared'
+import { ACCEPT, MAX_BYTES, isReceiptFile, markReturning, shouldShowLanding, takeSharedFiles, withTimeout } from './shared'
 
 // How long to wait for a scan before giving up (a build variable so it can be shortened for testing).
 const SCAN_TIMEOUT = Number(import.meta.env.VITE_SCAN_TIMEOUT_MS) || 70_000
 import { supabase } from './supabase'
+
+const Landing = lazy(() => import('./Landing'))
 
 function todayForDateInput() {
   const today = new Date()
@@ -39,6 +41,7 @@ export default function App() {
       (event, nextSession) => {
         // Following a password-reset email signs the user in and sends them to set a new password.
         if (event === 'PASSWORD_RECOVERY') setRecovery(true)
+        if (nextSession) markReturning()
         setSession(nextSession)
         setReady(true)
       },
@@ -60,7 +63,9 @@ export default function App() {
       email: session.user.email,
       hasPassword: (session.user.app_metadata?.providers ?? [session.user.app_metadata?.provider]).includes('email'),
     }} />
-    : <SignIn />
+    : shouldShowLanding()
+      ? <Suspense fallback={<main className="container page"><LoadingReceipt label="Opening CartTrail…" /></main>}><Landing /></Suspense>
+      : <SignIn />
 }
 
 function Tracker({ user, recovery }) {

@@ -280,3 +280,11 @@ The interface follows a restrained visual system: a white-paper receipt as the o
 | [Oxlint](https://oxc.rs/docs/guide/usage/linter.html) | Checks the source code via `npm run lint`. |
 
 See [`package.json`](package.json) for the full dependency list.
+
+## The public landing page
+
+People who aren't signed in see a landing page at the site address: what the app does, a 15 second video, screenshots of each feature, how to install it to a phone's home screen (no app store), a short privacy section, and the sign-in form. It lives in `src/Landing.jsx` and `src/styles/landing.css`, and its pictures and video are in `public/promo/`. It is its own chunk, so signed-in users never download it.
+
+- **Who sees it:** anyone signed out, except people in the middle of signing in (a Google or password-reset redirect, the share target) and browsers that have signed in before, which go straight to the sign-in screen. `/?about` always opens the landing page, and the sign-in screen links to it ("What is CartTrail?").
+- **Opening sign-ups:** by default the page and sign-in screen say accounts are invite-only. When new people may create accounts, set `VITE_SIGNUPS_OPEN=true` as a Cloudflare build variable (redeploy), and make sure **Authentication → Sign In / Providers → Allow new users to sign up** is on in Supabase and Google is configured as a provider. The wording then changes to "Get started free" and "Continue with Google".
+- **Updating the pictures and video:** replace the files in `public/promo/` (`hero`, `scan`, `checked`, `changed`, `trends`, `prices`, `savings`, `map`, `budget` and `week` as 780x1688 `.webp`; `carttrail-15s.mp4`; `poster.jpg`). The link preview shown when the site is shared is `public/og.png` (1200x630), with its tags in `index.html`. The public address used on shared receipts and in the install steps is `SITE_HOST` in `src/shared.js`.

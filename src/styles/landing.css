@@ -1,0 +1,55 @@
+/* The public landing page. Quiet and plain: solid colors, one accent, no gradients. */
+.lp { min-height: 100vh; background: var(--ground); }
+.lp-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 20px; padding-bottom: 20px; }
+.lp h2 { font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
+.lp h3 { font-size: 19px; line-height: 1.25; font-weight: 700; letter-spacing: -0.01em; }
+.lp-section { padding-top: 64px; padding-bottom: 8px; display: flex; flex-direction: column; gap: 20px; }
+
+.lp-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 48px; align-items: center; padding-top: 32px; padding-bottom: 24px; }
+.lp-hero-text { display: flex; flex-direction: column; gap: 22px; }
+.lp-hero h1 { font-size: 56px; line-height: 1.03; letter-spacing: -0.035em; font-weight: 800; }
+.lp-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* The phone frame: a solid dark bezel around the real screenshot. */
+.lp-phone { width: 100%; max-width: 330px; margin: 0 auto; padding: 8px; background: var(--ink); border-radius: 40px; }
+.lp-screen { border-radius: 32px; overflow: hidden; background: var(--ground); aspect-ratio: 390 / 844; }
+.lp-screen img, .lp-screen video { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.lp-hero-phone { max-width: 300px; }
+
+.lp-demo { flex-direction: row; align-items: center; justify-content: center; gap: 56px; }
+.lp-demo-text { display: flex; flex-direction: column; gap: 14px; max-width: 440px; }
+.lp-video-phone { margin: 0; flex: 0 0 auto; max-width: 300px; }
+.lp-video-phone .lp-screen { aspect-ratio: 9 / 16; background: var(--ink); }
+.lp-video-phone video { object-fit: contain; }
+
+.lp-grid { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+.lp-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column; }
+.lp-card-text { padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 8px; }
+.lp-shot { margin: 0 22px; border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; overflow: hidden; background: var(--ground); aspect-ratio: 4 / 3.4; }
+.lp-shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lp-card { padding-bottom: 0; }
+
+.lp-install { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+.lp-install ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; color: var(--ink); }
+
+.lp-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; max-width: 62ch; }
+.lp-points li { padding-left: 18px; border-left: 3px solid var(--accent-tint); line-height: 1.5; }
+
+.lp-signin { flex-direction: row; align-items: flex-start; gap: 48px; padding-top: 72px; }
+.lp-signin-text { flex: 1 1 0; display: flex; flex-direction: column; gap: 12px; }
+.lp-signin-card { flex: 1 1 0; max-width: 440px; }
+.lp-foot { padding-top: 48px; padding-bottom: 48px; }
+
+@media (max-width: 860px) {
+  .lp-hero { grid-template-columns: 1fr; gap: 32px; padding-top: 12px; }
+  .lp-hero h1 { font-size: 40px; }
+  .lp-hero-phone { max-width: 280px; }
+  .lp-demo { flex-direction: column; gap: 28px; }
+  .lp-demo-text { max-width: none; text-align: left; }
+  .lp-signin { flex-direction: column; gap: 24px; }
+  .lp-signin-card { max-width: none; width: 100%; }
+  .lp-section { padding-top: 48px; }
+  .lp h2 { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) { .lp * { scroll-behavior: auto !important; } }
+html:has(.lp) { scroll-behavior: smooth; }
