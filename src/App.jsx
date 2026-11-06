@@ -875,8 +875,8 @@ function Tracker({ user, recovery }) {
                         Or choose photos or PDFs from your library or files
                       </label>
                       <details className="disclosure small">
-                        <summary>How to upload an H‑E‑B Favor email receipt</summary>
-                        <p>On a computer, open the itemized receipt email in Gmail. In the message’s three-dot menu, choose <strong>Print</strong>. In the print window, choose <strong>Save as PDF</strong> and save the file. Upload that PDF here, then check the items and prices before saving.</p>
+                        <summary>How to upload a receipt from email</summary>
+                        <p>On your phone, open the receipt email that lists each item and its price. Tap the message’s three-dot menu and choose <strong>Print</strong>. On Android, choose <strong>Save as PDF</strong>. On iPhone, tap <strong>Share</strong> on the print screen, then <strong>Save to Files</strong>. Upload the saved PDF here.</p>
                       </details>
                     </>
                   )}
