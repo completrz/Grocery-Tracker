@@ -1,5 +1,5 @@
 import SignIn from './SignIn'
-import { Logo } from './ui'
+import { Logo, SocialLinks } from './ui'
 import { SIGNUPS_OPEN, SITE_HOST } from './shared'
 import './styles/landing.css'
 
@@ -127,8 +127,9 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="lp-foot container">
+      <footer className="lp-foot container stack-sm">
         <p className="small"><a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a> · <a href="/support/">Support</a></p>
+        <SocialLinks />
       </footer>
     </div>
   )

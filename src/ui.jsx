@@ -1,5 +1,15 @@
 import { dollars as dollarsFormat } from './format'
 
+export function SocialLinks() {
+  return (
+    <nav className="social-links" aria-label="CartTrail on social media">
+      <a href="https://www.instagram.com/carttrailsocial/" target="_blank" rel="noreferrer">Instagram</a>
+      <a href="https://www.youtube.com/channel/UCadDzNw88xQo0Sni_NIwEOw" target="_blank" rel="noreferrer">YouTube</a>
+      <a href="https://www.tiktok.com/@carttrailsocial" target="_blank" rel="noreferrer">TikTok</a>
+    </nav>
+  )
+}
+
 const paths = {
   scan: ['M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2', 'M8 12h8'],
   plus: ['M12 5v14M5 12h14'],

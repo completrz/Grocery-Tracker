@@ -450,9 +450,10 @@ tbody tr:last-child td { border-bottom: 0; }
 .danger form { padding-bottom: 16px; }
 .disclosure form { margin-top: 8px; }
 .site-footer { padding-top: 8px; padding-bottom: 40px; }
-.site-footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; border-top: 1px solid var(--line); padding-top: 20px; font-size: 14px; }
+.site-footer nav:first-child { display: flex; flex-wrap: wrap; gap: 8px 20px; border-top: 1px solid var(--line); padding-top: 20px; font-size: 14px; }
 .site-footer a { color: var(--muted); font-weight: 500; }
 .site-footer a:hover { color: var(--ink); }
+.social-links { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; }
 
 /* Personality: rubber stamp, shelf tags, aisle signs, printing loader, share picture, quips */
 .receipt-body { position: relative; }

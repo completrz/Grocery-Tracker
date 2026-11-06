@@ -8,7 +8,7 @@ import { EditReceipt, ReceiptItemsEditor, blankItem, receiptItemRows, hasInvalid
 import SignIn from './SignIn'
 import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
 import { dollars, formatDate, formatShortDate, receiptLines, receiptTotal } from './format'
-import { Avatar, Icon, LoadingReceipt, Logo, ReceiptPaper } from './ui'
+import { Avatar, Icon, LoadingReceipt, Logo, ReceiptPaper, SocialLinks } from './ui'
 import { greeting, primeAudio, printFeedback, receiptFooter, usePrefs } from './delight'
 import { receiptImpact } from './insights'
 import { makeSampleReceipts } from './sampleData'
@@ -1174,12 +1174,13 @@ function Tracker({ user, recovery }) {
         </div>
       </main>
 
-      <footer className="container site-footer">
+      <footer className="container site-footer stack-sm">
         <nav aria-label="Legal and support">
           <a href="/privacy/">Privacy</a>
           <a href="/terms/">Terms</a>
           <a href="/support/">Support</a>
         </nav>
+        <SocialLinks />
       </footer>
     </div>
   )

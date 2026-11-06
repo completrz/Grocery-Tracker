@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from './supabase'
-import { Logo, ReceiptPaper } from './ui'
+import { Logo, ReceiptPaper, SocialLinks } from './ui'
 import { SIGNUPS_OPEN } from './shared'
 
 // `embedded` shows just the form, for the landing page. Otherwise it is the whole sign-in screen.
@@ -117,6 +117,7 @@ export default function SignIn({ embedded = false }) {
           {form}
           <p className="small muted">{access}</p>
           <p className="small"><a href="/?about">What is CartTrail?</a> · <a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a> · <a href="/support/">Support</a></p>
+          <SocialLinks />
         </div>
       </main>
       <aside className="auth-aside" aria-hidden="true">
