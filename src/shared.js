@@ -37,3 +37,6 @@ export async function takeSharedFiles() {
   }
   return files
 }
+
+/** The public address shown on shared pictures and in share messages. Change it here if the domain changes. */
+export const SITE_HOST = 'carttrail.nicholashinkel.com'

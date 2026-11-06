@@ -1,4 +1,5 @@
 import { dollars } from './format'
+import { SITE_HOST } from './shared'
 
 // Draws "your week, as a receipt" on a canvas so it can be saved or shared as a picture. It contains totals and
 // category names only. Browser only: it needs a canvas.
@@ -54,7 +55,7 @@ export async function drawReceipt(summary, { note, footer }) {
   const footerLines = wrap(measure, footer, inner)
 
   const rows = summary.categories.length
-  const height = 40 + 30 + 20 + 14 + rows * 22 + 14 + 34 + 12 + 3 * 20 + 14 + noteLines.length * 18 + 8 + footerLines.length * 18 + 22 + 50 + 30 + 12
+  const height = 40 + 30 + 20 + 14 + rows * 22 + 14 + 34 + 12 + 3 * 20 + 14 + noteLines.length * 18 + 8 + footerLines.length * 18 + 22 + 50 + 30 + 12 + 22
   const canvas = document.createElement('canvas')
   canvas.width = (paper + MARGIN * 2) * SCALE
   canvas.height = (height + MARGIN * 2) * SCALE
@@ -160,6 +161,8 @@ export async function drawReceipt(summary, { note, footer }) {
     if (index % 2 === 0) ctx.fillRect(bx, y, bar * 2, 44)
     bx += bar * 2
   }
+  y += 44 + 20
+  text(SITE_HOST, left + paper / 2, 'center', `500 12px ${MONO}`, MUTED)
   return canvas
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { receiptFooter, usePrefs } from './delight'
+import { SITE_HOST } from './shared'
 import { drawReceipt, toBlob } from './receiptImage'
 import { summarize, summaryNote, summaryText } from './summary'
 
@@ -33,7 +34,7 @@ export default function ShareReceipt({ receipts, rules, count }) {
   async function share() {
     setMessage('')
     try {
-      await navigator.share({ files: [file()], title: 'My CartTrail receipt' })
+      await navigator.share({ files: [file()], title: 'My CartTrail receipt', text: 'See where your grocery money goes: https://' + SITE_HOST })
     } catch (error) {
       if (error?.name !== 'AbortError') setMessage('Couldn’t open sharing. You can save the picture instead.')
     }
