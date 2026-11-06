@@ -84,7 +84,7 @@ export default function Landing() {
             <div className="panel panel-pad stack-sm">
               <h3>Android (Chrome)</h3>
               <ol>
-                <li>Open <strong>{SITE_HOST}</strong> in Chrome.</li>
+                <li>Open <a href="https://carttrail.app/"><strong>{SITE_HOST}</strong></a> in Chrome.</li>
                 <li>Tap the menu (three dots).</li>
                 <li>Tap <strong>Install app</strong>.</li>
               </ol>
@@ -92,7 +92,7 @@ export default function Landing() {
             <div className="panel panel-pad stack-sm">
               <h3>iPhone (Safari)</h3>
               <ol>
-                <li>Open <strong>{SITE_HOST}</strong> in Safari.</li>
+                <li>Open <a href="https://carttrail.app/"><strong>{SITE_HOST}</strong></a> in Safari.</li>
                 <li>Tap the Share button.</li>
                 <li>Tap <strong>Add to Home Screen</strong>.</li>
               </ol>
@@ -100,7 +100,7 @@ export default function Landing() {
             <div className="panel panel-pad stack-sm">
               <h3>Computer</h3>
               <ol>
-                <li>Open <strong>{SITE_HOST}</strong> in any browser.</li>
+                <li>Open <a href="https://carttrail.app/"><strong>{SITE_HOST}</strong></a> in any browser.</li>
                 <li>Sign in and scan a receipt, or drop a file onto the page.</li>
               </ol>
             </div>
