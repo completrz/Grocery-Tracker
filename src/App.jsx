@@ -837,7 +837,7 @@ function Tracker({ user, recovery }) {
                   ? (impact.length > 0 ? 'Here’s what this receipt changed.' : 'Your history is up to date.')
                   : scanned
                     ? 'Compare each line with your photo. Fix anything the scanner misread, then save.'
-                    : 'Upload a photo to read it automatically, or type the items in by hand.'}</p>
+                    : 'Upload a photo or PDF to read it automatically, or type the items in by hand.'}</p>
               </div>
               {!saved && (scanned || items.some((item) => item.name || item.total)) && (
                 <button className="link-button" type="button" disabled={busy} onClick={discardScan}>Discard scan</button>
@@ -869,10 +869,16 @@ function Tracker({ user, recovery }) {
                       : <><Icon name="scan" size={28} /><span className="strong">Choose a receipt photo</span><span className="small muted">JPEG, PNG or PDF, up to 4 MB. Files are sent to Azure to be read. On a computer you can also drop a file here or paste a screenshot.</span></>}
                   </label>
                   {!scanned && !receiptId && (
-                    <label className="link-button">
-                      <input className="visually-hidden" type="file" accept={ACCEPT} multiple onChange={scanReceipt} />
-                      Or choose photos or PDFs from your library or files
-                    </label>
+                    <>
+                      <label className="link-button">
+                        <input className="visually-hidden" type="file" accept={ACCEPT} multiple onChange={scanReceipt} />
+                        Or choose photos or PDFs from your library or files
+                      </label>
+                      <details className="disclosure small">
+                        <summary>How to upload an H‑E‑B Favor email receipt</summary>
+                        <p>On a computer, open the itemized receipt email in Gmail. In the message’s three-dot menu, choose <strong>Print</strong>. In the print window, choose <strong>Save as PDF</strong> and save the file. Upload that PDF here, then check the items and prices before saving.</p>
+                      </details>
+                    </>
                   )}
                   {scanText && (
                     <details className="disclosure">
