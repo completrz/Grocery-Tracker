@@ -39,7 +39,7 @@ export async function takeSharedFiles() {
 }
 
 /** The public address shown on shared pictures and in share messages. Change it here if the domain changes. */
-export const SITE_HOST = 'carttrail.nicholashinkel.com'
+export const SITE_HOST = 'carttrail.app'
 
 /** Set VITE_SIGNUPS_OPEN=true once new people may create accounts (Supabase must also allow new users to sign up). */
 export const SIGNUPS_OPEN = import.meta.env.VITE_SIGNUPS_OPEN === 'true'
