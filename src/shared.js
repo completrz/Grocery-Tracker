@@ -40,3 +40,25 @@ export async function takeSharedFiles() {
 
 /** The public address shown on shared pictures and in share messages. Change it here if the domain changes. */
 export const SITE_HOST = 'carttrail.nicholashinkel.com'
+
+/** Set VITE_SIGNUPS_OPEN=true once new people may create accounts (Supabase must also allow new users to sign up). */
+export const SIGNUPS_OPEN = import.meta.env.VITE_SIGNUPS_OPEN === 'true'
+
+/** Show the page to signed-out visitors, except when they are in the middle of signing in or have used the app before. */
+export function shouldShowLanding() {
+  try {
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('about')) return true
+    const hash = window.location.hash
+    if (/access_token|refresh_token|error_description|type=recovery/.test(hash)) return false
+    if (params.has('code') || params.has('scan') || params.has('shared') || params.has('error')) return false
+    if (window.sessionStorage.getItem('carttrail-deleted')) return false
+    if (window.localStorage.getItem('carttrail-returning')) return false
+  } catch { /* storage unavailable: show the page */ }
+  return true
+}
+
+/** Remember that this browser has been signed in, so the landing page is skipped next time. */
+export function markReturning() {
+  try { window.localStorage.setItem('carttrail-returning', '1') } catch { /* optional */ }
+}

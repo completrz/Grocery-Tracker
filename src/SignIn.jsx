@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { supabase } from './supabase'
 import { Logo, ReceiptPaper } from './ui'
+import { SIGNUPS_OPEN } from './shared'
 
-export default function SignIn() {
+// `embedded` shows just the form, for the landing page. Otherwise it is the whole sign-in screen.
+export default function SignIn({ embedded = false }) {
   const [message, setMessage] = useState('')
   const [notice, setNotice] = useState(() => {
     // Shown once after the user deletes their account from their Profile.
@@ -72,6 +74,37 @@ export default function SignIn() {
     }
   }
 
+  const form = (
+    <form className="stack" onSubmit={signIn}>
+      <label className="field">Email
+        <input name="email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
+      </label>
+      <label className="field">Password
+        <input name="password" type="password" autoComplete="current-password" required />
+      </label>
+      <div><button className="link-button" type="button" disabled={busy} onClick={resetPassword}>Forgot your password?</button></div>
+      <button className="btn btn-primary btn-large btn-block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+      <button className="btn btn-secondary btn-block" type="button" disabled={busy} onClick={signInWithGoogle}>
+        {SIGNUPS_OPEN ? 'Continue with Google' : 'Sign in with Google'}
+      </button>
+      {notice && <p className="note" role="status">{notice}</p>}
+      {message && <p className="note note-warn" role="alert">{message}</p>}
+    </form>
+  )
+  const access = SIGNUPS_OPEN
+    ? 'New here? Continue with Google to create your account. It’s free.'
+    : 'CartTrail accounts are invite-only for now. Ask whoever set up your CartTrail to add you.'
+
+  if (embedded) {
+    return (
+      <div className="stack" id="sign-in">
+        <h2 className="h-section">{SIGNUPS_OPEN ? 'Get started' : 'Sign in'}</h2>
+        {form}
+        <p className="small muted">{access}</p>
+      </div>
+    )
+  }
+
   return (
     <div className="auth-shell">
       <main className="auth-main">
@@ -81,23 +114,9 @@ export default function SignIn() {
             <h1>Turn grocery receipts into a spending history.</h1>
             <p className="lede">Photograph a receipt, check the items against the printed subtotal, and see where the month’s grocery money went.</p>
           </div>
-          <form className="stack" onSubmit={signIn}>
-            <label className="field">Email
-              <input name="email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
-            </label>
-            <label className="field">Password
-              <input name="password" type="password" autoComplete="current-password" required />
-            </label>
-            <div><button className="link-button" type="button" disabled={busy} onClick={resetPassword}>Forgot your password?</button></div>
-            <button className="btn btn-primary btn-large btn-block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-            <button className="btn btn-secondary btn-block" type="button" disabled={busy} onClick={signInWithGoogle}>
-              Sign in with Google
-            </button>
-            {notice && <p className="note" role="status">{notice}</p>}
-            {message && <p className="note note-warn" role="alert">{message}</p>}
-          </form>
-          <p className="small muted">CartTrail accounts are invite-only for now. Ask whoever set up your CartTrail to add you.</p>
-          <p className="small"><a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a> · <a href="/support/">Support</a></p>
+          {form}
+          <p className="small muted">{access}</p>
+          <p className="small"><a href="/?about">What is CartTrail?</a> · <a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a> · <a href="/support/">Support</a></p>
         </div>
       </main>
       <aside className="auth-aside" aria-hidden="true">
