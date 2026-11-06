@@ -2,7 +2,7 @@
 
 **Turn grocery receipts into a spending history.** Take a photo of a receipt, check the items against the printed subtotal, and see where your grocery money goes, month by month and store by store.
 
-[Open the live app](https://grocery-tracker.hinkel-nicholas12.workers.dev/) · Accounts are invite-only for now, so ask whoever set up your CartTrail to add you.
+[Open the live app](https://carttrail.app/) · Accounts are invite-only for now, so ask whoever set up your CartTrail to add you.
 
 ![Walkthrough of CartTrail: the overview, scanning a receipt, fixing a misread price so the items match the printed $5.12 subtotal, confirming the store branch, saving, and the updated overview](docs/receipt-demo.gif)
 
