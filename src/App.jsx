@@ -4,6 +4,7 @@ import Trends from './Trends'
 import PlaceSearch from './PlaceSearch'
 import Profile from './Profile'
 import Overview from './Overview'
+import { EditReceipt, ReceiptItemsEditor, blankItem, receiptItemRows, hasInvalidReceiptItem } from './ReceiptEditor'
 import SignIn from './SignIn'
 import { categoryKey, defaultCategories, normalizeLabel, resolveCategory, tidyCategory } from './categories'
 import { dollars, formatDate, formatShortDate, receiptLines, receiptTotal } from './format'
@@ -25,10 +26,6 @@ function todayForDateInput() {
   const month = String(today.getMonth() + 1).padStart(2, '0')
   const day = String(today.getDate()).padStart(2, '0')
   return year + '-' + month + '-' + day
-}
-
-function blankItem() {
-  return { id: crypto.randomUUID(), name: '', quantity: '1', total: '', category: '' }
 }
 
 export default function App() {
@@ -91,6 +88,8 @@ function Tracker({ user, recovery }) {
   const [loaded, setLoaded] = useState(false)
   const [saved, setSaved] = useState(false)
   const [selectedId, setSelectedId] = useState('')
+  const [editingReceipt, setEditingReceipt] = useState(false)
+  const [receiptStatus, setReceiptStatus] = useState(null)
   const [sampleReceipts] = useState(() => makeSampleReceipts())
   const [queue, setQueue] = useState([])
   const [skippedNote, setSkippedNote] = useState('')
@@ -414,27 +413,8 @@ function Tracker({ user, recovery }) {
     event.preventDefault()
     primeAudio()
 
-    const rows = enteredItems.map((item) => ({
-      item_name: item.name.trim(),
-      quantity: Number(item.quantity),
-      line_total_cents: item.total.trim()
-        ? Math.round(Number(item.total) * 100)
-        : NaN,
-      ...(categoryReady && item.category.trim()
-        ? { category: tidyCategory(item.category, choices) }
-        : {}),
-    }))
-
-    const invalidItem = rows.some((row) =>
-      !row.item_name ||
-      !Number.isFinite(row.quantity) ||
-      row.quantity <= 0 ||
-      !Number.isInteger(row.line_total_cents) ||
-      row.line_total_cents < -2147483648 ||
-      row.line_total_cents > 2147483647,
-    )
-
-    if (rows.length === 0 || invalidItem) {
+    const rows = receiptItemRows(enteredItems, categoryReady, choices)
+    if (rows.length === 0 || hasInvalidReceiptItem(rows)) {
       setMessage('Every line needs a name, a quantity above zero, and a line total.', 'error')
       return
     }
@@ -500,6 +480,39 @@ function Tracker({ user, recovery }) {
     } finally {
       setBusy(false)
     }
+  }
+
+  async function manageReceipt(action, args) {
+    setBusy(true)
+    setReceiptStatus(null)
+    try {
+      const { error } = await supabase.rpc(action, args)
+      if (error) throw error
+
+      if (action === 'delete_grocery_receipt') {
+        setReceipts((current) => current.filter((receipt) => receipt.id !== args.p_id))
+        setSelectedId('')
+        setReceiptId((current) => current === args.p_id ? '' : current)
+        setReceiptStatus({ text: 'Receipt deleted.' })
+      } else {
+        setEditingReceipt(false)
+        setReceiptStatus({ text: 'Receipt updated.' })
+      }
+      setRefresh((current) => current + 1)
+    } catch (error) {
+      const text = error.code === 'PGRST202'
+        ? 'Receipt editing and deletion are temporarily unavailable.'
+        : error.message
+      setReceiptStatus({ text, error: true })
+      setRefresh((current) => current + 1)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function deleteReceipt(receipt) {
+    if (!window.confirm(`Delete the ${receipt.store} receipt from ${formatDate(receipt.purchased_on)} and all its items? This can’t be undone.`)) return
+    void manageReceipt('delete_grocery_receipt', { p_id: receipt.id })
   }
 
   async function saveReceiptLocation(id, point) {
@@ -616,6 +629,8 @@ function Tracker({ user, recovery }) {
   }
 
   function openView(nextView) {
+    setEditingReceipt(false)
+    setReceiptStatus(null)
     setView(nextView)
     window.scrollTo(0, 0)
   }
@@ -741,6 +756,7 @@ function Tracker({ user, recovery }) {
               </div>
             </div>
 
+            {receiptStatus && !editingReceipt && <p className={receiptStatus.error ? 'note note-warn' : 'note'} role={receiptStatus.error ? 'alert' : 'status'}>{receiptStatus.text}</p>}
             {historyError && <p className="note note-warn" role="alert">{historyError}</p>}
             {!historyError && !loaded && <LoadingReceipt label="Printing your receipts…" />}
             {!historyError && loaded && visibleReceipts.length === 0 && query && (
@@ -757,7 +773,12 @@ function Tracker({ user, recovery }) {
                       <tr key={receipt.id} className={receipt.id === selectedId ? 'row-selected' : undefined}>
                         <td className="strong">
                           <button className="link-button link-ink" type="button" aria-expanded={receipt.id === selectedId}
-                            onClick={() => setSelectedId(receipt.id === selectedId ? '' : receipt.id)}>{receipt.store}</button>
+                            disabled={busy} onClick={() => {
+                              setEditingReceipt(false)
+                              setReceiptStatus(null)
+                              setCategoryStatus('')
+                              setSelectedId(receipt.id === selectedId ? '' : receipt.id)
+                            }}>{receipt.store}</button>
                         </td>
                         <td className="muted">{formatDate(receipt.purchased_on)}</td>
                         <td className="num muted">{receipt.receipt_items.length}</td>
@@ -772,7 +793,13 @@ function Tracker({ user, recovery }) {
               <p className="receipt-tail">{receipts.length} {receipts.length === 1 ? 'RECEIPT' : 'RECEIPTS'} ON FILE. THANK YOU.</p>
             )}
 
-            {selectedReceipt && (
+            {selectedReceipt && !sampleMode && editingReceipt && (
+              <EditReceipt key={selectedReceipt.id} receipt={selectedReceipt} busy={busy} choices={choices} saveError={receiptStatus?.text}
+                categoryReady={categoryReady} categoryRules={categoryRules}
+                onCancel={() => { setEditingReceipt(false); setReceiptStatus(null) }}
+                onSave={(args) => manageReceipt('update_grocery_receipt', args)} />
+            )}
+            {selectedReceipt && !editingReceipt && (
               <section className="split" aria-labelledby="receipt-detail-title">
                 <div className="split-side">
                   <ReceiptPaper store={selectedReceipt.store} date={formatDate(selectedReceipt.purchased_on)}
@@ -807,11 +834,15 @@ function Tracker({ user, recovery }) {
                     })}
                   </ul>
                   {!sampleMode && (
-                    <div>
+                    <div className="toolbar">
+                      <button className="btn btn-secondary" type="button" disabled={busy}
+                        onClick={() => { setReceiptStatus(null); setEditingReceipt(true) }}>Edit receipt</button>
                       <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => {
                         setReceiptId(selectedReceipt.id)
                         startScan()
                       }}>Add items to this receipt</button>
+                      <button className="btn btn-danger" type="button" disabled={busy}
+                        onClick={() => deleteReceipt(selectedReceipt)}>Delete receipt</button>
                     </div>
                   )}
                 </div>
@@ -938,48 +969,10 @@ function Tracker({ user, recovery }) {
 
                   <details className="items-review" key={quickSave ? 'quick' : 'edit'} open={!quickSave}>
                     <summary className="items-summary" hidden={!quickSave}>Review the {enteredItems.length === 1 ? '1 item' : enteredItems.length + ' items'}, {dollars.format(enteredCents / 100)}</summary>
-                    <div className="table-panel table-panel-flush">
-                      <table className="items-table">
-                        <thead>
-                          <tr>
-                            <th scope="col">Item</th>
-                            <th scope="col" className="col-qty">Qty</th>
-                            <th scope="col" className="col-total">Line total</th>
-                            {categoryReady && <th scope="col" className="col-category">Category</th>}
-                            <th scope="col" className="col-remove"><span className="visually-hidden">Remove</span></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {items.map((item, index) => (
-                            <tr key={item.id}>
-                              <td><input className="cell-input" aria-label={`Item ${index + 1} name`} value={item.name} placeholder="Whole milk"
-                                onChange={(event) => updateItem(item.id, 'name', event.target.value)} /></td>
-                              <td><input className="cell-input" aria-label={`Item ${index + 1} quantity`} type="number" step="any" value={item.quantity}
-                                onChange={(event) => updateItem(item.id, 'quantity', event.target.value)} /></td>
-                              <td><input className="cell-input cell-money" aria-label={`Item ${index + 1} line total in dollars`} type="number" step="0.01" value={item.total} placeholder="0.00"
-                                onChange={(event) => updateItem(item.id, 'total', event.target.value)} /></td>
-                              {categoryReady && (
-                                <td><input className="cell-input" aria-label={`Item ${index + 1} category`} list="receipt-category-options" value={item.category} maxLength={64}
-                                  placeholder={resolveCategory(categoryRules, activeStore, item.name)}
-                                  onChange={(event) => updateItem(item.id, 'category', event.target.value)} /></td>
-                              )}
-                              <td>
-                                <button type="button" className="icon-button" aria-label={`Remove ${item.name.trim() || 'item ' + (index + 1)}`}
-                                  onClick={() => { setSaved(false); setItems((current) => current.filter((entry) => entry.id !== item.id)) }}>
-                                  <Icon name="close" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <div className="table-footer">
-                        <button type="button" className="btn btn-quiet" onClick={() => { setSaved(false); setItems((current) => [...current, blankItem()]) }}>
-                          <Icon name="plus" size={18} /> Add a line
-                        </button>
-                      </div>
-                    </div>
-                    {categoryReady && <p className="muted small spaced">Leave a category blank to use the suggestion. A category you enter is remembered for this store and item name.</p>}
+                    <ReceiptItemsEditor items={items} categoryReady={categoryReady} categoryRules={categoryRules}
+                      activeStore={activeStore} updateItem={updateItem}
+                      removeItem={(id) => { setSaved(false); setItems((current) => current.filter((entry) => entry.id !== id)) }}
+                      addItem={() => { setSaved(false); setItems((current) => [...current, blankItem()]) }} />
                   </details>
 
                   {!receiptId && subtotalCents !== null && (

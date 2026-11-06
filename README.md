@@ -101,6 +101,7 @@ Apply these in order. The app detects missing migrations and degrades gracefully
 | [`20261105030000_monthly_budget.sql`](supabase/migrations/20261105030000_monthly_budget.sql) | The `grocery_budgets` table (one monthly budget per user, with row-level security). Until it is applied, the budget panel is simply hidden. |
 | [`20261105050000_profiles.sql`](supabase/migrations/20261105050000_profiles.sql) | `profiles` (display name and avatar path, private to the user) and the private `avatars` storage bucket with per-user access rules. Until it is applied, the name and picture options are hidden. |
 | [`20261105040000_push_notifications.sql`](supabase/migrations/20261105040000_push_notifications.sql) | `push_subscriptions` (one row per device, endpoints limited to known push services), `notification_settings` (the user's choices and time zone) and `notification_log` (what was already sent; server only). Until it is applied, the notifications panel is hidden. |
+| [`20261106000000_manage_receipts.sql`](supabase/migrations/20261106000000_manage_receipts.sql) | Editing and deleting saved receipts from receipt history. |
 
 ## Reading the printed subtotal
 
